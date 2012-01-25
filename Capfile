@@ -4,7 +4,7 @@ Dir['vendor/gems/*/recipes/*.rb','vendor/plugins/*/recipes/*.rb'].each { |plugin
 
 load 'config/deploy' # remove this line to skip loading any of the default tasks
 
-after  'deploy:update_code','deploy:dummy_final_task' 
+after  'deploy:update_code','config_link:symlink'
 
 namespace :deploy do
   task :start do
@@ -25,3 +25,9 @@ namespace :deploy do
   end
 end
 
+namespace :config_link do
+  desc "Make symlink for ws.ini"
+  task :symlink do
+    run "ln -nfs #{shared_path}/config/ws.ini #{release_path}/ws.ini
+  end
+end

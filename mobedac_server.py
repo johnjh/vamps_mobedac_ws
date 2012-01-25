@@ -57,23 +57,16 @@ if __name__ == '__main__':
     import argparse
     the_root = None
     try:
-        usage = "usage: %prog [options] arg1 arg2"
-        parser = argparse.ArgumentParser(description='MBL Sequence Pipeline')
-        parser.add_argument('-p', '--port', required=False, metavar = 'PORT', 
-                                                     help = 'Listen port', default=8080)
-        parser.add_argument('-l', '--logicalpath',  required=False,          
-                                                     help = 'Logical path root e.g. /vamps_mobedac_ws', default = '/')
-        parser.add_argument('-w', '--workingfiledir',  required=True,          
-                                                     help = 'Absolute path of directory for storing uploaded files ')
-        args = parser.parse_args()
+        from initparms import get_parm
+        port = get_parm('port')
+        logicalpath = get_parm('logicalpath')
+        workingfiledir = get_parm('workingfiledir')
 
-        submission_processor_thread = Submission_Processor(10, 
-                                                           "http://vampsdev.mbl.edu/uploads/upload_data_post.php", 
-                                                           "http://vampsdev.mbl.edu/uploads/upload_data_gast.php", args.workingfiledir)
+        submission_processor_thread = Submission_Processor(10, get_parm('vamps_data_post_url'), get_parm('vamps_data_post_url'), workingfiledir)
         submission_processor_thread.start()
-        cherrypy.config.update({'server.socket_port': int(args.port),})
+        cherrypy.config.update({'server.socket_port': int(port),})
         the_root = Root(submission_processor_thread)
-        cherrypy.quickstart(the_root, args.logicalpath)
+        cherrypy.quickstart(the_root, logicalpath)
         the_root.stop_the_server()
 
     except:

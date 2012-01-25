@@ -15,10 +15,10 @@ import sys
 import traceback
 from sqlalchemy import *
 from sqlalchemy.orm import scoped_session, sessionmaker
+from initparms import get_parm
 
-
-test_engine = create_engine('mysql://john:oweneego@localhost/test', echo=True)
+test_engine = create_engine(get_parm('ws_connection_url'), echo=True)
 Session = scoped_session(sessionmaker(bind=test_engine))
-vamps_engine = create_engine('mysql://vamps_r:3l35Ant@vampsdev.mbl.edu/vamps', echo=True)
+vamps_engine = create_engine(get_parm('vamps_connection_url'), echo=True)
 vampsSession = scoped_session(sessionmaker(bind=vamps_engine))
 
