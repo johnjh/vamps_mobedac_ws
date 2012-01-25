@@ -28,6 +28,6 @@ end
 namespace :config_link do
   desc "Make symlink for ws.ini"
   task :symlink do
-    run "ln -nfs #{shared_path}/config/ws.ini #{release_path}/ws.ini
+    run "ln -nfs #{shared_path}/config/ws.ini #{release_path}/ws.ini"
   end
 end
