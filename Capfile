@@ -4,7 +4,7 @@ Dir['vendor/gems/*/recipes/*.rb','vendor/plugins/*/recipes/*.rb'].each { |plugin
 
 load 'config/deploy' # remove this line to skip loading any of the default tasks
 
-after  'deploy:update_code','deploy: dummy_final_task' 
+after  'deploy:update_code','deploy:dummy_final_task' 
 
 namespace :deploy do
   task :start do

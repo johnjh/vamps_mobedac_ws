@@ -63,9 +63,13 @@ if __name__ == '__main__':
                                                      help = 'Listen port', default=8080)
         parser.add_argument('-l', '--logicalpath',  required=False,          
                                                      help = 'Logical path root e.g. /vamps_mobedac_ws', default = '/')
+        parser.add_argument('-w', '--workingfiledir',  required=True,          
+                                                     help = 'Absolute path of directory for storing uploaded files ')
         args = parser.parse_args()
 
-        submission_processor_thread = Submission_Processor(10, "http://vampsdev.mbl.edu/uploads/upload_data_post.php", "http://vampsdev.mbl.edu/uploads/upload_data_gast.php", "/Users/johnhufnagle/Documents/workspace/mobedac_rest")
+        submission_processor_thread = Submission_Processor(10, 
+                                                           "http://vampsdev.mbl.edu/uploads/upload_data_post.php", 
+                                                           "http://vampsdev.mbl.edu/uploads/upload_data_gast.php", args.workingfiledir)
         submission_processor_thread.start()
         cherrypy.config.update({'server.socket_port': int(args.port),})
         the_root = Root(submission_processor_thread)
