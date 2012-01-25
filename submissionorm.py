@@ -143,8 +143,11 @@ class SubmissionORM(Base, BaseMoBEDAC):
                 elif self.next_action == self.ACTION_GAST_COMPLETE:
                     # at this point the WS started up the GAST on VAMPS and so we need to check
                     # with VAMPS to check the VAMPS Gasting status
-                    vamps_status_row = self.get_VAMPS_submission_status_row(None)     
-                    msg = "The VAMPS system is performing a GAST on the sequence data."
+                    vamps_status_row = self.get_VAMPS_submission_status_row(None)  
+                    if vamps_status_row[0] == 'GAST_SUCCESS':
+                        msg = "The VAMPS system has successfully completed the GAST processing."   
+                    else:
+                        msg = "The VAMPS system is performing the GAST processing"
                 else:
                     # this is kind of an error state?
                     msg = "The submission is stopped"
