@@ -254,7 +254,8 @@ class Submission_Processor (threading.Thread):
     def download_sequence_file(self, submission, processing_dir):
         try:
             # this will eventually be a URL on mobedac that should get us a stream object?
-            mobedac_file = open(get_parm("test_sequence_file_path"), "r")
+            mobedac_file_path = get_parm("test_sequence_file_path")
+            mobedac_file = open(mobedac_file_path, "r")
             raw_seq_file_name = Submission_Processor.MOBEDAC_SEQUENCE_FILE_NAME
             raw_seq_file = open(processing_dir + raw_seq_file_name, 'w')
             buffer_size=8192
@@ -266,7 +267,8 @@ class Submission_Processor (threading.Thread):
                     break
             raw_seq_file.close()
         except:
-            pass
+            self.log_to_submission(submission, "Error during retrieving of sequence data from MoBEDAC")
+            raise
         
     # need to create 4 files to upload to VAMPS
     # sequence file, run key file, primer file and params file
