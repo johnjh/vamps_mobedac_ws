@@ -4,7 +4,7 @@ Dir['vendor/gems/*/recipes/*.rb','vendor/plugins/*/recipes/*.rb'].each { |plugin
 
 load 'config/deploy' # remove this line to skip loading any of the default tasks
 
-after  'deploy:update_code','config_link:symlink'
+after  'deploy:update_code','config_link:symlink', 'upload_data_link:symlink'
 
 namespace :deploy do
   task :start do
@@ -29,5 +29,19 @@ namespace :config_link do
   desc "Make symlink for ws.ini"
   task :symlink do
     run "ln -nfs #{shared_path}/config/ws.ini #{release_path}/ws.ini"
+  end
+end
+
+namespace :upload_data_link do
+  desc "Make symlink for upload_data directory"
+  task :symlink do
+    run "ln -nfs #{shared_path}/upload_data #{release_path}/upload_data"
+  end
+end
+
+namespace :server_maint do
+  desc "stop the mobedac service"
+  task :stop do
+    run "curl http://localhost:8080/stop_the_server"
   end
 end

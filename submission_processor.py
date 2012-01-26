@@ -20,6 +20,7 @@ from sqlalchemy import *
 from dbconn import Session,vampsSession
 import sys
 import traceback
+from initparms import get_parm
 
 
 class Submission_Processor (threading.Thread):
@@ -253,7 +254,7 @@ class Submission_Processor (threading.Thread):
     def download_sequence_file(self, submission, processing_dir):
         try:
             # this will eventually be a URL on mobedac that should get us a stream object?
-            mobedac_file = open("/Users/johnhufnagle/Documents/workspace/mobedac_rest/src/test1.fa", "r")
+            mobedac_file = open(get_parm("test_sequence_file_path"), "r")
             raw_seq_file_name = Submission_Processor.MOBEDAC_SEQUENCE_FILE_NAME
             raw_seq_file = open(processing_dir + raw_seq_file_name, 'w')
             buffer_size=8192
