@@ -31,8 +31,7 @@ class RESTResource(object):
         try:
             if len(vpath) == 0:
                 all = self.orm_class.get_all(current_session)
-                str_array = self.orm_class.dump_attr([], all, self.orm_class.mobedac_collection_name())
-                return str_array[0]
+                return str(all)
             else:
                 if "query" == vpath[0]:
                     # do a query to find children objects

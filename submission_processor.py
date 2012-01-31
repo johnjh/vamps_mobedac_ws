@@ -121,8 +121,11 @@ class Submission_Processor (threading.Thread):
                 raise "Error starting GAST processing in VAMPS: " + response.msg
             submission.next_action = SubmissionORM.ACTION_GAST_COMPLETE
             self.sess_obj.commit()
-        finally:
-            pass
+        except:
+            raise "Some kind of error preparing to or actually calling VAMPS to GAST"
+            self.log_exception("Some kind of error preparing to or actually calling VAMPS to GAST")
+            self.log_to_submission(submission, "Some kind of error preparing to or actually calling VAMPS to GAST")
+            raise
          
     def log_to_submission(self, submission, msg):
         self.log_exception(msg)
