@@ -21,19 +21,21 @@ class BaseMoBEDAC():
     def get_remote_instance(cls, id, source, sess_obj):
         conn = None
         try:
-            headers = {'content-type': 'application/json'}
-            conn = httplib.HTTPConnection("mobedac.org")
-            object_path = cls.get_REST_sub_path()
-            conn.request("GET", "/api.cgi/" + object_path + "/" + id)
-            response = conn.getresponse()
-            data = response.read()
-            # if all went ok then build an object
-            if response.status != httplib.OK:
-                return None
-            new_obj = cls({})
-            decoded_data = unidecode(data)
-            json_obj = json.loads(decoded_data)
-            new_obj.from_json(True, json_obj[0], sess_obj)
+            if False:
+                headers = {'content-type': 'application/json'}
+                conn = httplib.HTTPConnection("api.metagenomics.anl.gov")
+                object_path = cls.get_REST_sub_path()
+                conn.request("GET", "/" + object_path + "/" + id)
+                response = conn.getresponse()
+                data = response.read()
+                # if all went ok then build an object
+                if response.status != httplib.OK:
+                    return None
+                new_obj = cls({})
+                decoded_data = unidecode(data)
+                json_obj = json.loads(decoded_data)
+                new_obj.from_json(True, json_obj, sess_obj)
+            new_obj = cls.get_instance(id, sess_obj)
             return new_obj
         except:
             exc_type, exc_value, exc_traceback = sys.exc_info()
@@ -62,7 +64,7 @@ class BaseMoBEDAC():
     @classmethod
     def get_instance(self,idval,sess):
         try:
-            obj = sess.query(self).filter(self.id == int(idval)).one()
+            obj = sess.query(self).filter(self.id == idval).one()
             return obj 
         except NoResultFound:
             # this is ok
@@ -82,6 +84,7 @@ class BaseMoBEDAC():
             setattr(self, key, None)
 
     def base_from_json(self, is_create, json_obj):
+        self.set_attrs_from_json(json_obj, self.BASE_ID)
         self.set_attrs_from_json(json_obj, self.BASE_NAME)
         self.set_attrs_from_json(json_obj, self.BASE_ABOUT)
         self.set_attrs_from_json(json_obj, self.BASE_URL)
@@ -91,14 +94,11 @@ class BaseMoBEDAC():
             self.creation = func.now()
         self.version = (1) if is_create else self.version + 1
     
-    def post_create(self, sess_obj):
-        pass
-    
     @classmethod
     def dump_attr(self, parts, val, key):
         if val == None:
             return ""
-        parts.append('"%s" : %s' % (key, json.dumps(val))) 
+        parts.append('\n"%s" : %s' % (key, json.dumps(val, sort_keys=False, indent=4)))     
         return parts       
     
     @classmethod
@@ -124,7 +124,7 @@ class BaseMoBEDAC():
                 if new_child != None:
                     child_collection.append(new_child)
     
-    def to_json(self):
+    def to_json(self, sess_obj):
         parts = []
         self.dump_attr(parts,str(self.id), self.BASE_ID)
         self.dump_attr(parts,self.name, self.BASE_NAME)

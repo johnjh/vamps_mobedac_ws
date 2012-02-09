@@ -16,51 +16,22 @@ from sampleorm import SampleORM
 from libraryorm import LibraryORM
 from ftplib import FTP
 from rest_log import mobedac_logger
-from dbconn import vampsSession
+from dbconn import vampsSession, test_engine
+from submission_detailsorm import SubmissionDetailsORM
 
 
 class SubmissionORM(Base, BaseMoBEDAC):
     __tablename__ = 'submission'
 
-    ACTION_DOWNLOAD = "download"
-    ACTION_VAMPS_UPLOAD = "vamps_upload"
-    ACTION_GAST = "gast"
-    ACTION_GAST_COMPLETE = "gast_complete"
-    VAMPS_PROJECT_NAME = "vamps_project_name"
-    VAMPS_DATASET_NAME = "vamps_dataset_name"
-    PROJECT = "project"
-    SAMPLE = "sample"
-    LIBRARY = "library"
-    SEQUENCE_SET = "sequence_set"
-    OPTIONS = "options"
+    ID = 'id'
+    ANALYSIS_PARAMS = 'analysis_params'
+    LIBRARY_IDS = 'library_ids'
+    USER = 'user'
     
-    # valid values download, vamps_upload, gast
-    NEXT_ACTION = "next_action"
-    
-    VAMPS_STATUS_RECORD_ID = "vamps_status_record_id"
-    CURRENT_STATUS_MSG = "current_status_msg"
-
     id = Column(Integer, primary_key=True)
-    name = Column(String(256))
-    about = Column(String(1024))
-    url = Column(String(512))
-    version = Column(Integer)  
-    mbd_metadata = Column('metadata',MEDIUMTEXT)
-    creation = Column(DateTime)
-    
-    # these don't have the _ID because they are ID's of objects on the MoBEDAC server not on the VAMPS box
-    library = Column(String(32))
-    project = Column(String(32))
-    sample = Column(String(32))
-    sequence_set = Column(String(32))
-    vamps_status_record_id = Column(String(32))
-    
-    options = Column(String(1024))
-    current_status_msg = Column(String(1024))
-    next_action = Column(String(45))
-    vamps_project_name = Column(String(128))
-    vamps_dataset_name = Column(String(128))
-    region = Column(String(45))
+    analysis_params_str = Column(String(1024))
+    library_ids_str = Column(String(1024))
+    user = Column(String(32))
     
     @classmethod
     def mobedac_name(self):
@@ -78,86 +49,97 @@ class SubmissionORM(Base, BaseMoBEDAC):
         pass
     
     def __repr__(self):
-        return "<SubmissionORM('%s','%s', '%s','%s','%s', '%s')>" % (self.name, self.about, self.url, self.version, self.mbd_metadata, self.creation)
+        return "<SubmissionORM('%s'')>" % (self.id)
     
-    def get_VAMPS_submission_status_row(self, sess_obj):
-        vamps_session = None
-        try:
-            vamps_session = vampsSession()
-            result_row = vamps_session.execute("SELECT status, status_message FROM vamps_upload_status where id=:id", {'id':self.vamps_status_record_id}).first()      
-            return result_row
-        except:
-            mobedac_logger.exception("submissionORM error retrieving vamps_upload_status with id: " + self.vamps_status_record_id)
-            raise
-        finally:
-            vamps_session.close()
-
-        
     def from_json(self, is_create, json_obj, sess_obj):
         # do base attrs
-        self.base_from_json(is_create, json_obj)
-        self.set_attrs_from_json(json_obj, SubmissionORM.PROJECT)
-        self.set_attrs_from_json(json_obj, SubmissionORM.SAMPLE)
-        self.set_attrs_from_json(json_obj, SubmissionORM.LIBRARY)
-        self.set_attrs_from_json(json_obj, SubmissionORM.SEQUENCE_SET)
-        self.options = json.dumps(json_obj[self.OPTIONS])
-        self.vamps_submitted = False
+        self.library_ids = json_obj[self.LIBRARY_IDS]
+        self.library_ids_str = json.dumps(self.library_ids)
+        self.analysis_params_str = json.dumps(json_obj[self.ANALYSIS_PARAMS]) 
+        self.analysis_params = json_obj[self.ANALYSIS_PARAMS] 
+        self.user = self.analysis_params[self.USER]
         return self
-
-    def post_create(self, sess_obj):
-        self.next_action = self.ACTION_DOWNLOAD
-        sess_obj.add(self)
-        sess_obj.commit()
     
-    def to_json(self):
-        base_json = BaseMoBEDAC.to_json(self)
-        parts = [base_json]
-        self.dump_attr(parts,self.project, SubmissionORM.PROJECT)
-        self.dump_attr(parts,self.sample, SubmissionORM.SAMPLE)
-        self.dump_attr(parts,self.library, SubmissionORM.LIBRARY)
-        self.dump_attr(parts,self.sequence_set, SubmissionORM.SEQUENCE_SET)
-        self.dump_attr(parts,json.loads(self.options), SubmissionORM.OPTIONS)
-        self.dump_attr(parts,self.vamps_project_name, SubmissionORM.VAMPS_PROJECT_NAME)
-        self.dump_attr(parts,self.vamps_dataset_name, SubmissionORM.VAMPS_DATASET_NAME)
-        # how to give back the status msg...we only keep text when there is an error
-        if self.current_status_msg != None:
-            self.dump_attr(parts,self.current_status_msg, SubmissionORM.CURRENT_STATUS_MSG)
-        else:
-            try:
-                # this is more complicated since there is no message on our side so at this point
-                # this web service does not think there is an error...but perhaps VAMPS has run
-                # into an error?
-                if self.next_action == self.ACTION_DOWNLOAD:
-                    # we are telling them that VAMPS is doing the retrieval but it is really
-                    # this web service that grabs the data and then passes it off to VAMPS
-                    msg = "The VAMPS system is still retrieving the data from MoBEDAC."
-                elif self.next_action == self.ACTION_VAMPS_UPLOAD:
-                    msg = "The data has been retrieved from MoBEDAC and will soon be uploaded to the VAMPS processor."
-                elif self.next_action == self.ACTION_GAST:
-                    # so at this point this WS successfully passed the data off to VAMPS who
-                    # is doing the trimming...we need to check with VAMPS 
-                    vamps_status_row = self.get_VAMPS_submission_status_row(None)     
-                    # need to get the status value
-                    # for now
-                    msg = "The data is being uploaded and quality checked by the VAMPS system."
-                elif self.next_action == self.ACTION_GAST_COMPLETE:
-                    # at this point the WS started up the GAST on VAMPS and so we need to check
-                    # with VAMPS to check the VAMPS Gasting status
-                    vamps_status_row = self.get_VAMPS_submission_status_row(None)  
-                    if vamps_status_row[0] == 'GAST_SUCCESS':
-                        msg = "The VAMPS system has successfully completed the GAST processing."   
-                    else:
-                        msg = "The VAMPS system is performing the GAST processing"
-                else:
-                    # this is kind of an error state?
-                    msg = "The submission is stopped"
-            except:
-                mobedac_logger.exception("submissionORM error generating submission status message")
-                msg = "There was an error retrieving the status of this submission"
-            self.dump_attr(parts,msg, SubmissionORM.CURRENT_STATUS_MSG)
+    def to_json(self, sess_obj):
+        parts = []
+        
+        self.dump_attr(parts,self.user, SubmissionORM.USER)
+        self.dump_attr(parts,self.id, SubmissionORM.ID)
+        
+        params_as_dictionary = json.loads(self.analysis_params_str)
+        self.dump_attr(parts,params_as_dictionary, SubmissionORM.ANALYSIS_PARAMS)
+        library_ids_as_array = json.loads(self.library_ids_str)
+        self.dump_attr(parts,library_ids_as_array, SubmissionORM.LIBRARY_IDS)
+        # status block...need overall status and per library status
+        # get all detail objects
+        status_hash = {}
+        # assume an overall success unless there is somekind of error or incomplete in one of the details objects
+        overall_status = SubmissionDetailsORM.COMPLETE_SUCCESS_STATUS
+        overall_status_msg = "Processing complete"
+        for detail in sess_obj.query(SubmissionDetailsORM).filter(SubmissionDetailsORM.submission_id == self.id).all():
+            status_hash[detail.library_id] = detail.get_current_status()    
+            # any in process or error?
+            if status_hash[detail.library_id]['status_code'] == SubmissionDetailsORM.ERROR_STATUS:
+                overall_status = SubmissionDetailsORM.ERROR_STATUS
+                overall_status_msg = "There was a processing error."
+            # any still in process...if so mark the overall as in process unless
+            # the overall is already marked as ERROR then don't overwrite that!
+            if overall_status != SubmissionDetailsORM.ERROR_STATUS and status_hash[detail.library_id]['status_code'] == SubmissionDetailsORM.PROCESSING_STATUS:
+                overall_status = SubmissionDetailsORM.PROCESSING_STATUS
+                overall_status_msg = "VAMPS is still processing the data."
+        overall_status_hash = {}
+        overall_status_hash["status_code"] = overall_status
+        overall_status_hash["current_status"] = overall_status_msg
+        overall_status_hash["library_statuses"] = status_hash
+                
+        self.dump_attr(parts, overall_status_hash, "status")    
         
         # we will eventually want to query the VAMPS db to get the status
         result =  ",".join(parts)
-        print result
         return result
 
+    
+
+    def initialize_for_processing(self, sess_obj):
+        # make sure to write this submission out before anything
+        sess_obj.add(self)
+        sess_obj.commit()
+
+        # need to call back to mobedac and figure out all the other objects etc
+        libraries = self.library_ids
+        # now loop and gather all info
+        project_hash = {}
+        sample_hash = {}
+        library_hash = {}
+        sequence_set_hash = {}
+        for lib_id in libraries:
+            library_hash[lib_id] = curr_library = LibraryORM.get_remote_instance(lib_id, None, sess_obj)
+            sample_id = curr_library.sample_id
+            sample_hash[sample_id] = curr_sample = SampleORM.get_remote_instance(sample_id, None, sess_obj)
+            project_id = curr_sample.project_id
+            project_hash[project_id] = curr_project = ProjectORM.get_remote_instance(project_id, None, sess_obj)
+            # now what will the official project name be in vamps for this library?
+            curr_library_domain = curr_library.domain
+            curr_library_region = curr_library.region
+            domain_region_suffix = '_' + curr_library_domain[0].upper() + curr_library_region.lower()
+            vamps_project_name = curr_project.get_metadata_json()['project_code'] + domain_region_suffix
+            # now create the submission details objects
+            new_details = SubmissionDetailsORM(None)
+            new_details.submission_id = self.id
+            new_details.project_id = project_id
+            new_details.library_id = lib_id
+            new_details.sample_id = sample_id
+            new_details.region = curr_library_region.lower()
+            new_details.vamps_project_name = vamps_project_name
+            # mobedac uses periods...we don't want them
+            dataset_name = curr_library.id.replace('.', '_')
+            new_details.vamps_dataset_name = dataset_name
+            new_details.sequenceset_id = curr_library.sequence_set_ids.split(", ")[0]
+            mbd_json = json.loads(curr_sample.mbd_metadata)
+            new_details.next_action = SubmissionDetailsORM.ACTION_DOWNLOAD
+            sess_obj.add(new_details)
+            
+        # now set the status                
+        self.next_action = 'HALT'
+        sess_obj.commit()
+    

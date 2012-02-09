@@ -14,18 +14,19 @@ import json as json
 #    Column('sequenceset_id', Integer, ForeignKey('sequenceset.id')))
 class LibraryORM(Base, BaseMoBEDAC):
     __tablename__ = 'library'
-    SEQUENCESET_IDS = "sequencesets"
+    SEQUENCESET_ID_ARRAY = "sequencesets"
     LIB_TYPE = "lib_type"
     LIB_INSERT_LEN = "lib_insert_len"
-    SAMPLE_ID = "sample"
+    SAMPLE_ID = "sample_id"
     RUN_KEY = "run_key"
     PRIMERS = "primers"
     DIRECTION = "direction"
     REGION = "region"
+    DOMAIN = "domain"
     
-    sample_id = Column(Integer, ForeignKey('sample.id'))
+    sample_id = Column(String(64), ForeignKey('sample.id'))
     
-    id = Column(Integer, primary_key=True)
+    id = Column(String(64), primary_key=True)
     name = Column(String(256))
     about = Column(String(1024))
     url = Column(String(512))
@@ -38,6 +39,8 @@ class LibraryORM(Base, BaseMoBEDAC):
     primers = Column(MEDIUMTEXT)
     direction = Column(String(16))
     region = Column(String(32))
+    domain = Column(String(32))
+    sequence_set_ids = Column(String(512))
 
 #    sequencesets = relationship("SequenceSetORM",secondary=library_sequenceset_table)    
     sequencesets = relationship("SequenceSetORM")    
@@ -73,15 +76,17 @@ class LibraryORM(Base, BaseMoBEDAC):
         self.primers = json.dumps(json_obj[self.PRIMERS])
         self.set_attrs_from_json(json_obj, self.DIRECTION)
         self.set_attrs_from_json(json_obj, self.REGION)
+        self.set_attrs_from_json(json_obj, self.DOMAIN)
+        self.set_attrs_from_json(json_obj, self.SAMPLE_ID)
+        self.sequence_set_ids = ",".join(json_obj['sequence_set_ids'])
         
-        self.sample_id = int(json_obj["sample"])
         # now put the objects into the real child collection
         # have to do deletes on all existing child sample associations that are not in the new sample set
 #        BaseMoBEDAC.update_child_collection(SequenceSetORM, self.sequencesets, json_obj[LibraryORM.SEQUENCESET_IDS], sess_obj)
         return self
     
-    def to_json(self):
-        base_json = BaseMoBEDAC.to_json(self)
+    def to_json(self, sess_obj):
+        base_json = BaseMoBEDAC.to_json(self, sess_obj)
         parts = [base_json]
         # dump derived parts here
         self.dump_attr(parts,self.lib_type, self.LIB_TYPE)
@@ -90,9 +95,10 @@ class LibraryORM(Base, BaseMoBEDAC):
         self.dump_attr(parts,json.loads(self.primers), self.PRIMERS)
         self.dump_attr(parts,self.direction, self.DIRECTION)
         self.dump_attr(parts,self.region, self.REGION)
+        self.dump_attr(parts,self.domain, self.DOMAIN)
         self.dump_attr(parts,self.sample_id, self.SAMPLE_ID)
         #self.dump_attr(parts,self.pi, ProjectORM.PROJECT_PI)
-        self.dump_collection_attr(parts, self.sequencesets, 'sequencesets')
+        self.dump_collection_attr(parts, self.sequencesets, self.SEQUENCESET_ID_ARRAY)
 
         result =  ",".join(parts)
         print result

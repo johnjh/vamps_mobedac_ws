@@ -43,7 +43,7 @@ class RESTResource(object):
                     cherrypy.response.status = 404
                     return "Unable to find " + self.orm_class.mobedac_name() + " id: " + vpath[0]
                 cherrypy.response.headers['content-type'] = 'application/json'
-                result = "{%s}" % one.to_json()
+                result = "{%s}" % one.to_json(current_session)
                 return result
         except:
             exc_type, exc_value, exc_traceback = sys.exc_info()
@@ -59,10 +59,7 @@ class RESTResource(object):
                 submission_obj = self.orm_class({})
                 json_obj = self.json_from_body()
                 submission_obj.from_json(True, json_obj, current_session)
-                submission_obj.post_create(current_session)                
-                for submission in current_session.query(SubmissionORM).all():
-                    print "rest handler found obj: " + str(submission.id)
-                    
+                submission_obj.initialize_for_processing(current_session)                
                 return str(submission_obj.id)
             else:
                 # create the object
@@ -70,9 +67,8 @@ class RESTResource(object):
                 json_obj = self.json_from_body()
                 new_obj.from_json(True, json_obj, current_session)
                 current_session.add(new_obj)
-                new_obj.post_create()
                 current_session.commit()
-                return str(new_obj.id)
+                return new_obj.id
         except:
             exc_type, exc_value, exc_traceback = sys.exc_info()
             traceback.print_exception(exc_type, exc_value, exc_traceback)
@@ -81,7 +77,7 @@ class RESTResource(object):
         
     def handle_PUT(self, current_session, *vpath, **params):
         """ Update of an existing object
-        """
+        """ 
         try:
             existing_obj = self.orm_class.get_instance(vpath[0], current_session)
             if existing_obj == None:

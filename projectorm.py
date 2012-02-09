@@ -20,7 +20,7 @@ class ProjectORM(Base, BaseMoBEDAC):
     PROJECT_SAMPLES = 'samples'
     PROJECT_SEQUENCE_SET_IDS = 'sequence_set_ids'
 
-    id = Column(Integer, primary_key=True)
+    id = Column(String(64), primary_key=True)
     name = Column(String(256))
     about = Column(String(1024))
     url = Column(String(512))
@@ -37,6 +37,7 @@ class ProjectORM(Base, BaseMoBEDAC):
     @classmethod
     def get_REST_sub_path(cls):
         return "project"
+
     
     @classmethod
     def mobedac_name(self):
@@ -67,8 +68,8 @@ class ProjectORM(Base, BaseMoBEDAC):
 #        BaseMoBEDAC.update_child_collection(SampleORM, self.samples, json_obj[ProjectORM.PROJECT_SAMPLES], sess_obj)
         return self
     
-    def to_json(self):
-        base_json = BaseMoBEDAC.to_json(self)
+    def to_json(self, sess_obj):
+        base_json = BaseMoBEDAC.to_json(self, sess_obj)
         parts = [base_json]
         self.dump_attr(parts,self.pi, ProjectORM.PROJECT_PI)
         self.dump_attr(parts,self.funding_source, ProjectORM.PROJECT_FUNDING_SOURCE)

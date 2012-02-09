@@ -3,6 +3,7 @@ import cherrypy
 import threading
 import time
 from submissionorm import SubmissionORM
+from sequencesetorm import SequenceSetORM
 from projectorm import ProjectORM
 from sampleorm import SampleORM
 from libraryorm import LibraryORM
@@ -21,6 +22,7 @@ from dbconn import Session,vampsSession
 import sys
 import traceback
 from initparms import get_parm
+from submission_detailsorm import SubmissionDetailsORM
 
 
 class Submission_Processor (threading.Thread):
@@ -36,7 +38,8 @@ class Submission_Processor (threading.Thread):
         self.vamps_upload_url = vamps_upload_url
         self.vamps_gast_url = vamps_gast_url
         self.root_dir = processing_dir
-
+        self.halt_processing = False
+        
         threading.Thread.__init__(self)
      
     def log_debug(self, msg):
@@ -48,44 +51,112 @@ class Submission_Processor (threading.Thread):
     def stop_processing(self):   
         self.exitFlag = True
         
+    def disable_processing(self):   
+        self.halt_processing = True
+        
+    def enable_processing(self):   
+        self.halt_processing = False
+
+    def log_to_submission_detail(self, submission_detail, msg):
+        self.log_exception(msg)
+        submission_detail.current_status_msg = msg
+        self.sess_obj.commit()
+
+    def log_to_submission(self, submission, msg):
+        self.log_exception(msg)
+        submission.current_status_msg = msg
+        self.sess_obj.commit()
+
+    def clear_submission_msg_text(self, submissiondetail_array):
+        for detail in submissiondetail_array:
+            detail.current_status_msg = None
+        self.sess_obj.commit()
+        
+    def set_submission_details_next_action(self, submissiondetail_array, next_action):
+        for detail in submissiondetail_array:
+            detail.next_action = next_action
+        self.sess_obj.commit()
+        
+    def create_submission_processing_dir(self, submission):
+        processing_dir = self.root_dir + "/" + str(submission.id)
+        if os.path.exists(processing_dir) == False:
+            os.mkdir(processing_dir)
+        return processing_dir
+
+    def create_submission_detail_processing_dir(self, submission, submissiondetail):
+        processing_dir = self.create_submission_processing_dir(submission) + "/" + str(submissiondetail.id) 
+        if os.path.exists(processing_dir) == False:
+            os.mkdir(processing_dir)
+        return processing_dir
+    
     def run(self):
         # Register the streaming http handlers with urllib2
         streaminghttp.register_openers()
         # start the work
         while True:
-            if self.exitFlag:
-                return;
-            self.perform_action_on_submissions(SubmissionORM.ACTION_DOWNLOAD)
-            if self.exitFlag:
-                return;
-            self.perform_action_on_submissions(SubmissionORM.ACTION_VAMPS_UPLOAD)
-            if self.exitFlag:
-                return;
-            self.perform_action_on_submissions(SubmissionORM.ACTION_GAST)
-            if self.exitFlag:
-                return;
             # sleep 30 seconds...this should be parameterized
             time.sleep(30)
+            if self.halt_processing == False:
+                if self.exitFlag:
+                    return;
+                self.perform_action_on_submissions(SubmissionDetailsORM.ACTION_DOWNLOAD)
+                if self.exitFlag:
+                    return;
+                self.perform_action_on_submissions(SubmissionDetailsORM.ACTION_VAMPS_UPLOAD)
+                if self.exitFlag:
+                    return;
+                self.perform_action_on_submissions(SubmissionDetailsORM.ACTION_GAST)
+                if self.exitFlag:
+                    return;
 
     # perform the action on the submissions in the db
     def perform_action_on_submissions(self, action):
         self.sess_obj = None
         try:
             self.sess_obj = Session()
-            # get all pending submissions
-            for submission in self.sess_obj.query(SubmissionORM).filter(SubmissionORM.next_action == action).all():
-                print "GOT a submission object id: " + str(submission.id)
-                if self.exitFlag:
-                    return;
-                try:
-                    # assume all is well with this submission object
-                    self.clear_submission_msg_text(submission)
-                    # find the action
-                    action_method = getattr(self, action)
-                    # do the action
-                    action_method(submission)
-                except:
-                    self.log_exception("Got exception action: " + action + " processing submission id: " + str(submission.id))
+            details_hashed_by_submission_id = {}
+            # get all pending submission detail objects and put them in a hash where each key is the submission id
+            # and each value is an array of detail objects
+            for detail in self.sess_obj.query(SubmissionDetailsORM).filter(SubmissionDetailsORM.next_action == action).all():
+                detailed_array_by_submission_id = details_hashed_by_submission_id.get(detail.submission_id, None)
+                if detailed_array_by_submission_id == None:
+                    details_hashed_by_submission_id[detail.submission_id] = []
+                details_hashed_by_submission_id[detail.submission_id].append(detail)
+                
+            # now loop over all the arrays of detail objects
+            final_detail_hashs_by_submission_id = {}
+            for key, value in  details_hashed_by_submission_id.items():
+                # value is now an array of detail objects all tied to its parent submission object id
+                # we want to now group these by project name
+                hashed_detail_objects = {}
+                for detail in value:
+                    details_by_project_name = hashed_detail_objects.get(detail.vamps_project_name, None)
+                    if details_by_project_name == None:
+                        hashed_detail_objects[detail.vamps_project_name] = []
+                    hashed_detail_objects[detail.vamps_project_name].append(detail)
+                final_detail_hashs_by_submission_id[key] = hashed_detail_objects
+                
+            # now we have a hash with key=submission id and the value is now a hash which is keyed by project name and the value is all details with that project name
+            for submission_id, details_hash_by_project_name in final_detail_hashs_by_submission_id.items():
+                # now get the items from the sub hash
+                details_hash = details_hash_by_project_name
+                for detail_array in details_hash.itervalues():
+                    print "Working on submission details objects: " + str(detail_array)
+                    # get the submission object
+                    submission = self.sess_obj.query(SubmissionORM).filter(SubmissionORM.id == submission_id).one()
+                    # make sure the base processing dir is there
+                    base_dir = self.create_submission_processing_dir(submission)
+                    if self.exitFlag:
+                        return;
+                    try:
+                        # assume all is well with these submission detail object(s)
+                        self.clear_submission_msg_text(detail_array)
+                        # find the action
+                        action_method = getattr(self, action)
+                        # do the action
+                        action_method(submission, detail_array)
+                    except:
+                        self.log_exception("Got exception action: " + action + " processing submission id: " + str(submission.id))
         except:
             exc_type, exc_value, exc_traceback = sys.exc_info()
             traceback.print_exception(exc_type, exc_value, exc_traceback)
@@ -93,23 +164,26 @@ class Submission_Processor (threading.Thread):
             self.sess_obj.close()
             self.sess_obj = None
             
-    def gast(self, submission):
+    def gast(self, submission, submissiondetail_array):
         try:
-            # need to see if this submission whose next processing step is supposed to be GAST
-            # is really ready for GASTing in the VAMPS system....because VAMPS might still be performing
-            # all of the trimming work
-            status_row = submission.get_VAMPS_submission_status_row(self.sess_obj)
-            if status_row == None:
-                raise "Error preparing for GAST of submission: " + str(submission.id) + " no vamps_upload_status record found for id: " + str(submission.vamps_status_record_id)
-            if status_row[0] != self.VAMPS_TRIM_SUCCESS:
-                self.log_debug("Can't GAST submission: " + str(submission.id) + " yet, VAMPS status is: " + status_row[0])
-                return
-             
-            values = {'project' : submission.vamps_project_name,
-                      'dataset' : submission.vamps_dataset_name,
-                      'new_source' : submission.region, 
+            # so we can have a collection of submissions to gast
+            # if there are more than 1 details in a project then we want to gast them as a group
+            # and so they all have to be at the state of TRIM_SUCCESS else we can't gast yet
+            for detail in submissiondetail_array:                          
+                status_row = detail.get_VAMPS_submission_status_row(self.sess_obj)
+                if status_row == None:
+                    raise "Error preparing for GAST no vamps_upload_status record found for submission_detail: " + detail.id + " vamps_status_id: " + str(submission.vamps_status_record_id)
+                if status_row[0] != self.VAMPS_TRIM_SUCCESS:
+                    self.log_debug("Can't GAST submissiondetail: " + str(detail.id) + " yet, VAMPS status is: " + status_row[0])
+                    return
+            # if we land here then all submission detail objects in this project were uploaded and trimmed successfully and are waiting to be GASTed
+            
+            # can use just a single detail object because we GAST all the datasets in the project
+            detail =  submissiondetail_array[0]
+            values = {'project' : detail.vamps_project_name,
+                      'new_source' : detail.region, 
                       'gast_ok' : '1',
-                      'run_number' : submission.vamps_status_record_id
+                      'run_number' : detail.vamps_status_record_id
                       }
             
             data = urllib.urlencode(values)
@@ -119,148 +193,40 @@ class Submission_Processor (threading.Thread):
             response = urllib2.urlopen(request)
             if response.code != 200:
                 raise "Error starting GAST processing in VAMPS: " + response.msg
-            submission.next_action = SubmissionORM.ACTION_GAST_COMPLETE
+            # must have submitted ok so mark them all
+            for detail in submissiondetail_array:                          
+                detail.next_action = SubmissionDetailsORM.ACTION_GAST_COMPLETE
             self.sess_obj.commit()
         except:
-            raise "Some kind of error preparing to or actually calling VAMPS to GAST"
             self.log_exception("Some kind of error preparing to or actually calling VAMPS to GAST")
             self.log_to_submission(submission, "Some kind of error preparing to or actually calling VAMPS to GAST")
             raise
          
-    def log_to_submission(self, submission, msg):
-        self.log_exception(msg)
-        submission.current_status_msg = msg
-        self.sess_obj.commit()
+    def download(self, submission, submissiondetail_array):
+        for detail in submissiondetail_array:
+            # lets make a dir for the data for this object  dir:  <root>/submission.id/submission_detail.id/
+            processing_dir = self.create_submission_detail_processing_dir(submission, detail)
 
-    def clear_submission_msg_text(self, submission):
-        submission.current_status_msg = None
-        self.sess_obj.commit()
-        
-        
-    def download(self, submission):
-        # lets make a dir for the data for this object
-        processing_dir = self.root_dir + "/" + str(submission.id) + "/"
-        if os.path.exists(processing_dir) == False:
-            os.mkdir(processing_dir)
-        
-        # start downloading from MoBEDAC
-        # get the project object
-        try:
-            project = ProjectORM.get_remote_instance(submission.project, None, self.sess_obj)
-        except:
-            self.log_to_submission(submission, "Error retrieving submission project: " + submission.project)
-            return
-
-        try:
-#            sample = SampleORM.get_remote_instance(submission.sample, None, self.sess_obj)
-            pass
-        except:
-            self.log_to_submission(submission, "Error retrieving submission sample: " + submission.sample)
-            return
-        
-        try:
-#           library = LibraryORM.get_remote_instance(submission.library, None, self.sess_obj)
-            pass
-        except:
-            self.log_to_submission(submission, "Error retrieving submission library: " + submission.library)
-            return
-
-        # now get the sequence set as object? or just a file? how?
-        try:
-            self.download_sequence_file(submission, processing_dir)
-        except:
-            self.log_to_submission(submission, "Error retrieving sequence set: " + submission.sequence_set)
-            return
-        
-        # if all went ok then mark this as completed
-        submission.next_action = SubmissionORM.ACTION_VAMPS_UPLOAD
-        submission.current_status_msg = "Data successfully downloaded from MoBEDAC server...transferring to VAMPS processor"
+            sequence_set = SequenceSetORM.get_remote_instance(detail.sequenceset_id, None, self.sess_obj)      
+            # now get the sequence set as object? or just a file? how?
+            try:
+                self.download_sequence_file(detail, sequence_set, processing_dir)
+            except:
+                self.log_to_submission_detail(detail, "Error retrieving sequence set: " + detail.sequenceset_id)
+                return        
+            # if all went ok then mark this as completed
+            detail.next_action = SubmissionDetailsORM.ACTION_VAMPS_UPLOAD
         # save it
         self.sess_obj.commit()
-        
-        
-    def vamps_upload(self, submission):
-        # start downloading from MoBEDAC
-        # get the project object
-        try:
-            project = ProjectORM.get_remote_instance(submission.project, None, self.sess_obj)
-        except:
-            self.log_to_submission(submission, "Upload to VAMPS, Error retrieving submission project: " + submission.project)
-            return
 
-        try:
-            sample = SampleORM.get_remote_instance(submission.sample, None, self.sess_obj)
-        except:
-            self.log_to_submission(submission, "Upload to VAMPS, Error retrieving submission sample: " + submission.sample)
-            return
-        
-        try:
-#           library = LibraryORM.get_remote_instance(submission.library, None, self.sess_obj)
-            pass
-        except:
-            self.log_to_submission(submission, "Upload to VAMPS, Error retrieving submission library: " + submission.library)
-            return
-
-        try:
-            library = LibraryORM({})
-            library_json_data = {
-             "run_key" : "GACAG",  
-             "direction" : "F",  
-             "region" : "v6",
-             "primers" : [
-    {"name" : "967F",    "direction" : "F",    "sequence" : "CNACGCGAAGAACCTTANC",   "regions" : "v6",   "location" : "967F"},
-    {"name" : "967F-UC1",   "direction" :  "F",  "sequence" :   "CAACGCGAAAA+CCTTACC",   "regions" :  "v6",    "location" :  "967F"},
-    {"name" : "967F-UC2",   "direction" :  "F" ,  "sequence" :  "CAACGCGCAGAACCTTACC",   "regions" :  "v6",    "location" :  "967F"},
-    {"name" : "967F-UC3",   "direction" :  "F",    "sequence" : "ATACGCGA[AG]GAACCTTACC",  "regions" :   "v6",    "location" :  "967F"},
-    {"name" : "967F-UC4",   "direction" :  "F",   "sequence" :  "CTAACCGANGAACCTYACC" ,  "regions" :  "v6",   "location" :   "967F"},
-    {"name" : "967F-PP",   "direction" :  "F" ,  "sequence" :  "C.ACGCGAAGAACCTTA.C",   "regions" :  "v6",    "location" :  "967F"},
-    {"name" : "967F-AQ",  "direction" :   "F",   "sequence" :  "CTAACCGA.GAACCT[CT]ACC",   "regions" :  "v6",    "location" :  "967F"},
-    {"name" : "1046R",    "direction" : "R",   "sequence" :  "AGGTG.?TGCATGG*CTGTCG",   "regions" :  "v6",    "location" :  "1046R"},
-    {"name" : "1046R-PP",   "direction" :  "R" ,  "sequence" :  "AGGTG.?TGCATGG*TTGTCG",   "regions" :  "v6",    "location" :  "1046R"},
-    {"name" : "1046R-AQ1",   "direction" :  "R",   "sequence" :  "AGGTG.?TGCATGG*CCGTCG",  "regions" :  "v6",    "location" :  "1046R"},
-    {"name" : "1046R-AQ2",   "direction" :  "R",   "sequence" :  "AGGTG.?TGCATGG*TCGTCG",   "regions" :  "v6",    "location" :  "1046R" }                      
-                          ]}
-            library.primers = json.dumps(library_json_data["primers"])
-            library.direction = library_json_data['direction']
-            library.region = library_json_data['region']
-            library.run_key = library_json_data['run_key']
-            
-            library.region = library.region.lower()
-            option_json = json.loads(submission.options)
-    #        project_code = option_json["project_name_code"]
-            project_code = "JJH_"
-            # project name is <project_code>_<domain><region>
-            # and the <project_code> should be of the format like <4 letter project abbreviation>_<PI INITIALS>
-            final_project_code = project_code + datetime.datetime.now().strftime("%Y%m%d%H%M%S") + "_" + option_json['domain'][0].upper() + library.region
-      
-            # get the sequence set name
-            sequence_set_name = "test_set"  # this should eventually be the .name field of the sequence set object retrieved from MoBEDAC
-            
-            # possible errors to check for
-            # check vamps_upload_info and vamps_project_info for duplicate project/dataset combos
-            # need generated project name, dataset name               
-            submission.vamps_status_record_id = self.create_and_upload(submission, sequence_set_name, final_project_code, project, submission.sample, library)
-    
-            # remember the name of the project and dataset
-            submission.vamps_project_name = final_project_code
-            submission.vamps_dataset_name = submission.sample
-            submission.region = library.region
-            # if all went ok then mark this as completed
-            submission.next_action = SubmissionORM.ACTION_GAST
-            submission.current_status_msg = "Data transfer to VAMPS begun."
-            # save it
-            self.sess_obj.commit()
-        except:
-            self.log_to_submission(submission, "Error during preparation and UPLOAD to VAMPS")
-        
     # call back to MoBEDAC and get the sequence file....could take a long time
-    def download_sequence_file(self, submission, processing_dir):
+    def download_sequence_file(self, detail, sequence_set, processing_dir):
         try:
             # this will eventually be a URL on mobedac that should get us a stream object?
-            mobedac_file_path = get_parm("test_sequence_file_path")
+            mobedac_file_path = get_parm("test_sequence_file_path") + sequence_set.id + ".fa"
             mobedac_file = open(mobedac_file_path, "r")
             raw_seq_file_name = Submission_Processor.MOBEDAC_SEQUENCE_FILE_NAME
-            raw_seq_file = open(processing_dir + raw_seq_file_name, 'w')
+            raw_seq_file = open(processing_dir + "/" + raw_seq_file_name, 'w')
             buffer_size=8192
             while 1:
                 copy_buffer = mobedac_file.read(buffer_size)
@@ -270,18 +236,57 @@ class Submission_Processor (threading.Thread):
                     break
             raw_seq_file.close()
         except:
-            self.log_to_submission(submission, "Error during retrieving of sequence data from MoBEDAC")
+            self.log_to_submission_detail(detail, "Error during retrieving of sequence data from MoBEDAC")
             raise
+        
+    def vamps_upload(self, submission, submissiondetail_array):
+        for detail in submissiondetail_array:
+            self.vamps_upload_helper(submission, detail)
+            
+    def vamps_upload_helper(self, submission, submissiondetail):
+        # start downloading from MoBEDAC
+        # get the project object
+        try:
+            project = ProjectORM.get_remote_instance(submissiondetail.project_id, None, self.sess_obj)
+        except:
+            self.log_to_submission_detail(submissiondetail, "Upload to VAMPS, Error retrieving submission project: " + submissiondetail.project_id)
+            return
+
+        try:
+            sample = SampleORM.get_remote_instance(submissiondetail.sample_id, None, self.sess_obj)
+        except:
+            self.log_to_submission_detail(submissiondetail, "Upload to VAMPS, Error retrieving submission sample: " + submissiondetail.sample_id)
+            return
+        
+        try:
+           library = LibraryORM.get_remote_instance(submissiondetail.library_id, None, self.sess_obj)
+        except:
+            self.log_to_submission_detail(submissiondetail, "Upload to VAMPS, Error retrieving submission library: " + submissiondetail.library_id)
+            return
+
+        try:            
+            # possible errors to check for
+            # check vamps_upload_info and vamps_project_info for duplicate project/dataset combos
+            # need generated project name, dataset name               
+            submissiondetail.vamps_status_record_id = self.create_and_upload(submission, submissiondetail, project, library)
+    
+            # if all went ok then mark this as completed
+            submissiondetail.next_action = SubmissionDetailsORM.ACTION_GAST
+            # save it
+            self.sess_obj.commit()
+        except:
+            self.log_to_submission(submission, "Error during preparation and UPLOAD to VAMPS")
+        
         
     # need to create 4 files to upload to VAMPS
     # sequence file, run key file, primer file and params file
-    def create_and_upload(self, submission, sequence_set_name, project_code, project, sample_name, library_obj): 
-        processing_dir = self.root_dir + "/" + str(submission.id) + "/"
+    def create_and_upload(self, submission, submission_detail, project, library_obj): 
+        processing_dir = self.create_submission_detail_processing_dir(submission, submission_detail) + "/"
 
         # now create the cleaned seq file
         # create the cleaned sequence file also
         clean_sequence_file_name = processing_dir + Submission_Processor.MOBEDAC_SEQUENCE_FILE_NAME_PREFIX + "_clean.fa"
-        self.convert_raw_to_clean_seq(processing_dir + Submission_Processor.MOBEDAC_SEQUENCE_FILE_NAME, Submission_Processor.MOBEDAC_SEQUENCE_FILE_NAME_PREFIX, clean_sequence_file_name)
+        self.convert_raw_to_clean_seq(str(submission_detail.id), processing_dir + Submission_Processor.MOBEDAC_SEQUENCE_FILE_NAME, Submission_Processor.MOBEDAC_SEQUENCE_FILE_NAME_PREFIX, clean_sequence_file_name)
 
         # now create the primer file
         # first get the owning Library
@@ -291,19 +296,17 @@ class Submission_Processor (threading.Thread):
         
         # now create the key file
         run_key = library_obj.run_key
-        dataset = sample_name
         key_hash = {"key" : run_key, "direction" : library_obj.direction,
-                    "region" : library_obj.region, "project" : project_code, "dataset" : dataset}
+                    "region" : submission_detail.region, "project" : submission_detail.vamps_project_name, "dataset" : submission_detail.vamps_dataset_name}
         run_key_file_name = processing_dir + "run_key.txt"
         self.write_run_key_file(run_key_file_name, key_hash)
         
-        # copy the param file
-        submission_opsions_json = json.loads(submission.options)
+        # create the param file
         param_file_name = processing_dir + "params.prm"
-        self.create_params_file(param_file_name, submission_opsions_json['user'], run_key, project.description[0:255], "Dataset description test", project.name)
+        self.create_params_file(param_file_name, submission.user, run_key, project.description[0:255], "Dataset description test", project.name)
         
         # now send the files on up
-        vamps_status_record_id = self.post_sequence_data(submission, clean_sequence_file_name, primer_file_name, run_key_file_name, param_file_name)
+        vamps_status_record_id = self.post_sequence_data(submission_detail, clean_sequence_file_name, primer_file_name, run_key_file_name, param_file_name)
         return vamps_status_record_id
     
     def create_params_file(self, param_file_name, vamps_user, run_key, project_description, dataset_description, project_title):
@@ -319,7 +322,7 @@ class Submission_Processor (threading.Thread):
         params_file.close()
 
         
-    def post_sequence_data(self, submission, clean_sequence_file_name, primer_file_name, run_key_file_name, param_file_name):
+    def post_sequence_data(self, submission_detail, clean_sequence_file_name, primer_file_name, run_key_file_name, param_file_name):
         try:
             # headers contains the necessary Content-Type and Content-Length
             # datagen is a generator object that yields the encoded parameters
@@ -337,10 +340,10 @@ class Submission_Processor (threading.Thread):
             if response.code != 200:
                 raise "Error uploading sequence files to VAMPS: " + response.msg
             response_str = response.read()
-            self.log_debug("Uploaded to VAMPS submission: " + str(submission.id) + " got response id: " + response_str)
+            self.log_debug("Uploaded to VAMPS submission_detail: " + str(submission_detail.id) + " got response id: " + response_str)
             return response_str
         except:
-            self.log_exception("Error connecting with VAMPS processor to upload submission: " + str(submission.id))
+            self.log_exception("Error connecting with VAMPS processor to upload submission_detail: " + str(submission_detail.id))
             raise
         finally:
             pass
@@ -351,13 +354,13 @@ class Submission_Processor (threading.Thread):
         key_file.write(key_line)
         key_file.close()
         
-    def convert_raw_to_clean_seq(self, raw_seq_file_name, raw_seq_file_name_prefix, clean_seq_file_name):
+    def convert_raw_to_clean_seq(self, unique_key, raw_seq_file_name, raw_seq_file_name_prefix, clean_seq_file_name):
         raw_seq_file = open(raw_seq_file_name, 'r')
         clean_seq_file = open(clean_seq_file_name, 'w')
         for seq_record in SeqIO.parse(raw_seq_file, "fasta"):
             parts = seq_record.description.split('|')
             id = parts[0]
-            dated_id = id.replace("@@@@@@@@@@", datetime.datetime.now().strftime("%Y%m%d%H%M%S"))
+            dated_id = id.replace("@@@@@@@@@@", unique_key) # datetime.datetime.now().strftime("%Y%m%d%H%M%S"))
             remainder = "|".join(parts[1:])
             clean_seq_file.write(">%s\t%s\t%s\n" % (dated_id, seq_record.seq, remainder))
             

@@ -18,8 +18,7 @@ class SequenceSetORM(Base, BaseMoBEDAC):
     TYPE = "type"
     PROTEIN = "protein"
     PROVENANCE = "provenance"
-    LIBRARY_ID = "library"
-    DOMAIN = "domain"
+    LIBRARY_ID = "library_id"
 
     id = Column(Integer, primary_key=True)
     name = Column(String(256))
@@ -29,7 +28,6 @@ class SequenceSetORM(Base, BaseMoBEDAC):
     mbd_metadata = Column('metadata',MEDIUMTEXT)
     creation = Column(DateTime)
     type = Column(String(256))
-    domain = Column(String(32))
     protein = Column(Boolean)
     provenance = Column(MEDIUMTEXT)
     library_id = Column(Integer, ForeignKey('library.id'))
@@ -62,18 +60,16 @@ class SequenceSetORM(Base, BaseMoBEDAC):
 #        self.protein = True if (json_obj[self.PROTEIN].lowercase()=='true') else False
         self.set_attrs_from_json(json_obj, self.PROTEIN)
         self.set_attrs_from_json(json_obj, self.PROVENANCE)
-        self.set_attrs_from_json(json_obj, self.DOMAIN)
-        self.library_id = int(json_obj["library"])
+        self.set_attrs_from_json(json_obj, self.LIBRARY_ID)
         return self
     
-    def to_json(self):
-        base_json = BaseMoBEDAC.to_json(self)
+    def to_json(self, sess_obj):
+        base_json = BaseMoBEDAC.to_json(self, sess_obj)
         parts = [base_json]
 
         self.dump_attr(parts,self.type, self.TYPE)
         self.dump_attr(parts,self.protein, self.PROTEIN)
         self.dump_attr(parts,self.provenance, self.PROVENANCE)
-        self.dump_attr(parts,self.domain, self.DOMAIN)
         self.dump_attr(parts,self.library_id, self.LIBRARY_ID)
         result =  ",".join(parts)
         print result

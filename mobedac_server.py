@@ -9,6 +9,7 @@ from sampleorm import SampleORM
 from libraryorm import LibraryORM
 from sequencesetorm import SequenceSetORM
 from submissionorm import SubmissionORM
+from submission_detailsorm import SubmissionDetailsORM
 from rest_log import mobedac_logger,set_error_file_logging_debug,set_error_file_logging_info
 import logging
 from submission_processor import Submission_Processor
@@ -23,6 +24,7 @@ class Root(object):
     library = RESTResource(LibraryORM)
     sequenceset = RESTResource(SequenceSetORM)
     submission = RESTResource(SubmissionORM)
+    submissiondetails = RESTResource(SubmissionDetailsORM)
 
     def __init__(self, submission_processor_thread):
         self.submission_processor_thread = submission_processor_thread
@@ -38,6 +40,13 @@ class Root(object):
     @cherrypy.expose
     def log_level_info(self):
         set_error_file_logging_info()
+
+    @cherrypy.expose
+    def halt_processor(self):
+        self.submission_processor_thread.disable_processing()
+
+    def start_processor(self):
+        self.submission_processor_thread.enable_processing()
 
     @cherrypy.expose
     def stop_the_server(self):
