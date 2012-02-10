@@ -20,7 +20,7 @@ class SequenceSetORM(Base, BaseMoBEDAC):
     PROVENANCE = "provenance"
     LIBRARY_ID = "library_id"
 
-    id = Column(Integer, primary_key=True)
+    id = Column(String(64), primary_key=True)
     name = Column(String(256))
     about = Column(String(1024))
     url = Column(String(512))
@@ -30,7 +30,7 @@ class SequenceSetORM(Base, BaseMoBEDAC):
     type = Column(String(256))
     protein = Column(Boolean)
     provenance = Column(MEDIUMTEXT)
-    library_id = Column(Integer, ForeignKey('library.id'))
+    library_id = Column(String(64), ForeignKey('library.id'))
     
     @classmethod
     def get_REST_sub_path(cls):
