@@ -57,7 +57,7 @@ class SequenceSetORM(Base, BaseMoBEDAC):
         # do base attrs
         self.base_from_json(is_create, json_obj)
         self.set_attrs_from_json(json_obj, self.TYPE)
-#        self.protein = True if (json_obj[self.PROTEIN].lowercase()=='true') else False
+        self.protein = json_obj[self.PROTEIN]
         self.set_attrs_from_json(json_obj, self.PROTEIN)
         self.set_attrs_from_json(json_obj, self.PROVENANCE)
         self.set_attrs_from_json(json_obj, self.LIBRARY_ID)

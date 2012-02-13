@@ -79,7 +79,7 @@ CREATE TABLE `primer` (
   `domain` enum('bacteria','archaea','eukarya','') DEFAULT NULL,
   PRIMARY KEY (`primer_id`),
   UNIQUE KEY `primer` (`primer`)
-) ENGINE=InnoDB AUTO_INCREMENT=259 DEFAULT CHARSET=latin1;
+) ENGINE=InnoDB DEFAULT CHARSET=latin1;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -94,7 +94,7 @@ CREATE TABLE `primer_suite` (
   `primer_suite` varchar(25) NOT NULL DEFAULT '',
   PRIMARY KEY (`primer_suite_id`),
   UNIQUE KEY `primer_suite` (`primer_suite`)
-) ENGINE=InnoDB AUTO_INCREMENT=26 DEFAULT CHARSET=latin1;
+) ENGINE=InnoDB DEFAULT CHARSET=latin1;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -114,7 +114,7 @@ CREATE TABLE `primer_vamps` (
   `domain` enum('bacteria','archaea','eukarya','') DEFAULT NULL,
   PRIMARY KEY (`primer_id`),
   UNIQUE KEY `primer` (`primer`)
-) ENGINE=InnoDB AUTO_INCREMENT=259 DEFAULT CHARSET=latin1;
+) ENGINE=InnoDB DEFAULT CHARSET=latin1;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -196,7 +196,7 @@ CREATE TABLE `sequenceset` (
   `creation` datetime NOT NULL,
   `metadata` mediumtext,
   `type` varchar(256) DEFAULT NULL,
-  `protein` varchar(45) DEFAULT NULL,
+  `protein` tinyint(1) DEFAULT NULL,
   `library_id` varchar(64) NOT NULL,
   `provenance` mediumtext,
   PRIMARY KEY (`id`),
@@ -218,7 +218,7 @@ CREATE TABLE `submission` (
   `analysis_params_str` varchar(1024) DEFAULT NULL,
   `user` varchar(32) DEFAULT NULL,
   PRIMARY KEY (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=47 DEFAULT CHARSET=latin1;
+) ENGINE=InnoDB AUTO_INCREMENT=48 DEFAULT CHARSET=latin1;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -244,7 +244,7 @@ CREATE TABLE `submission_details` (
   PRIMARY KEY (`id`),
   KEY `submission_id` (`submission_id`),
   CONSTRAINT `submission_details_ibfk_2` FOREIGN KEY (`submission_id`) REFERENCES `submission` (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=54 DEFAULT CHARSET=latin1;
+) ENGINE=InnoDB AUTO_INCREMENT=55 DEFAULT CHARSET=latin1;
 /*!40101 SET character_set_client = @saved_cs_client */;
 /*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
 
@@ -256,4 +256,4 @@ CREATE TABLE `submission_details` (
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
--- Dump completed on 2012-02-09 15:58:12
+-- Dump completed on 2012-02-13  9:12:01
