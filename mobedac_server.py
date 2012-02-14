@@ -44,7 +44,7 @@ class Root(object):
     @cherrypy.expose
     def halt_processor(self):
         self.submission_processor_thread.disable_processing()
-
+    @cherrypy.expose
     def start_processor(self):
         self.submission_processor_thread.enable_processing()
 

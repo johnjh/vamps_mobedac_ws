@@ -360,9 +360,8 @@ class Submission_Processor (threading.Thread):
         for seq_record in SeqIO.parse(raw_seq_file, "fasta"):
             parts = seq_record.description.split('|')
             id = parts[0]
-            dated_id = id.replace("@@@@@@@@@@", unique_key) # datetime.datetime.now().strftime("%Y%m%d%H%M%S"))
             remainder = "|".join(parts[1:])
-            clean_seq_file.write(">%s\t%s\t%s\n" % (dated_id, seq_record.seq, remainder))
+            clean_seq_file.write(">%s\t%s\t%s\n" % (id, seq_record.seq, remainder))
             
         raw_seq_file.close()
         clean_seq_file.close()

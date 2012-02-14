@@ -87,13 +87,9 @@ class SubmissionORM(Base, BaseMoBEDAC):
             if overall_status != SubmissionDetailsORM.ERROR_STATUS and status_hash[detail.library_id]['status_code'] == SubmissionDetailsORM.PROCESSING_STATUS:
                 overall_status = SubmissionDetailsORM.PROCESSING_STATUS
                 overall_status_msg = "VAMPS is still processing the data."
-        overall_status_hash = {}
-        overall_status_hash["status_code"] = overall_status
-        overall_status_hash["current_status"] = overall_status_msg
-        overall_status_hash["library_statuses"] = status_hash
-                
-        self.dump_attr(parts, overall_status_hash, "status")    
-        
+        self.dump_attr(parts, overall_status, "status_code")
+        self.dump_attr(parts, overall_status_msg, "current_status")
+        self.dump_attr(parts, status_hash, "library_statuses")
         # we will eventually want to query the VAMPS db to get the status
         result =  ",".join(parts)
         return result

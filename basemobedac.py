@@ -6,6 +6,7 @@ from sqlalchemy.dialects.mysql import MEDIUMTEXT
 from sqlalchemy import Column, Integer, String
 import httplib, urllib
 from unidecode import unidecode
+from initparms import get_parm
 
 
 class BaseMoBEDAC():
@@ -21,11 +22,14 @@ class BaseMoBEDAC():
     def get_remote_instance(cls, id, source, sess_obj):
         conn = None
         try:
-            if False:
+            # dev mode?
+            if get_parm("remote_objects_are_local").lower() == 'true':
+                new_obj = cls.get_instance(id, sess_obj)
+            else:
                 headers = {'content-type': 'application/json'}
-                conn = httplib.HTTPConnection("api.metagenomics.anl.gov")
+                conn = httplib.HTTPConnection(get_parm("mobedac_host"))
                 object_path = cls.get_REST_sub_path()
-                conn.request("GET", "/" + object_path + "/" + id)
+                conn.request("GET", get_parm("mobedac_base_path") + object_path + "/" + id)
                 response = conn.getresponse()
                 data = response.read()
                 # if all went ok then build an object
@@ -35,7 +39,6 @@ class BaseMoBEDAC():
                 decoded_data = unidecode(data)
                 json_obj = json.loads(decoded_data)
                 new_obj.from_json(True, json_obj, sess_obj)
-            new_obj = cls.get_instance(id, sess_obj)
             return new_obj
         except:
             exc_type, exc_value, exc_traceback = sys.exc_info()
