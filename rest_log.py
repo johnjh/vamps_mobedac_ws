@@ -1,6 +1,7 @@
 import cherrypy
 import logging
 from logging.handlers import RotatingFileHandler
+from initparms import get_parm
 
 
 log = cherrypy.log
@@ -17,15 +18,15 @@ def set_error_file_logging_info():
 log.error_file = "" 
 log.access_file = "" 
 maxBytes = getattr(log, "rot_maxBytes", 10000000) 
-backupCount = getattr(log, "rot_backupCount", 1000) 
+backupCount = getattr(log, "rot_backupCount", 10) 
 # Make a new RotatingFileHandler for the error log. 
-fname = getattr(log, "rot_error_file", "error.log") 
+fname = getattr(log, "rot_error_file", get_parm("error_log_path")) 
 h = RotatingFileHandler(fname, 'a', maxBytes, backupCount) 
 h.setFormatter(logging.Formatter("%(asctime)s - [thread: %(thread)s %(threadName)s] - %(name)s - %(levelname)s - %(message)s")) 
 log.error_log.addHandler(h) 
 
 # Make a new RotatingFileHandler for the access log. 
-fname = getattr(log, "rot_access_file", "access.log") 
+fname = getattr(log, "rot_access_file", get_parm("access_log_path")) 
 h = RotatingFileHandler(fname, 'a', maxBytes, 
 backupCount) 
 h.setFormatter(cherrypy._cplogging.logfmt) 

@@ -95,6 +95,7 @@ class Submission_Processor (threading.Thread):
         streaminghttp.register_openers()
         # start the work
         while True:
+            self.log_debug("top of processing loop about to sleep")
             # sleep 30 seconds...this should be parameterized
             time.sleep(30)
             if self.halt_processing == False:

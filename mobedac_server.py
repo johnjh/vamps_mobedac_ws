@@ -72,6 +72,8 @@ if __name__ == '__main__':
         logicalpath = get_parm('logicalpath')
         workingfiledir = get_parm('workingfiledir')
 
+        mobedac_logger.debug("in main of mobedac_server")
+
         submission_processor_thread = Submission_Processor(10, get_parm('vamps_data_post_url'), get_parm('vamps_data_gast_url'), workingfiledir)
 #        submission_processor_thread.disable_processing()
         submission_processor_thread.start()
