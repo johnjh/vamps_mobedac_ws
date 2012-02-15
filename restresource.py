@@ -45,11 +45,11 @@ class RESTResource(object):
                 cherrypy.response.headers['content-type'] = 'application/json'
                 result = "{%s}" % one.to_json(current_session)
                 return result
-        except:
+        except Exception as e:
             exc_type, exc_value, exc_traceback = sys.exc_info()
             traceback.print_exception(exc_type, exc_value, exc_traceback)
             cherrypy.response.status = 500
-            return "There was an error attempting to service the request"
+            return "There was an error attempting to service the request: " + str(e)
         
     def handle_POST(self, current_session, *vpath, **params):
         """ Create of an object
@@ -69,11 +69,12 @@ class RESTResource(object):
                 current_session.add(new_obj)
                 current_session.commit()
                 return new_obj.id
-        except:
+        except Exception as e:
             exc_type, exc_value, exc_traceback = sys.exc_info()
             traceback.print_exception(exc_type, exc_value, exc_traceback)
             current_session.rollback()
-            return "0"
+            cherrypy.response.status = 500
+            return "There was an error on submission: " + e.value
         
     def handle_PUT(self, current_session, *vpath, **params):
         """ Update of an existing object
@@ -90,8 +91,9 @@ class RESTResource(object):
         except:
             exc_type, exc_value, exc_traceback = sys.exc_info()
             traceback.print_exception(exc_type, exc_value, exc_traceback)
+            cherrypy.response.status = 500
             current_session.rollback()
-            return "0"
+            return "An error occured processing your request: " + exc_value
 
     def handle_HEAD(self, current_session, *vpath, **params):
         try:

@@ -7,6 +7,7 @@ from sqlalchemy import Column, Integer, String
 import httplib, urllib
 from unidecode import unidecode
 from initparms import get_parm
+from object_retrieval_exception import ObjectRetrievalException
 
 
 class BaseMoBEDAC():
@@ -25,6 +26,8 @@ class BaseMoBEDAC():
             # dev mode?
             if get_parm("remote_objects_are_local").lower() == 'true':
                 new_obj = cls.get_instance(id, sess_obj)
+                if new_obj == None:
+                    raise ObjectRetrievalException("Unable to retrieve object: " + id + " from db");
             else:
                 headers = {'content-type': 'application/json'}
                 conn = httplib.HTTPConnection(get_parm("mobedac_host"))
@@ -34,16 +37,20 @@ class BaseMoBEDAC():
                 data = response.read()
                 # if all went ok then build an object
                 if response.status != httplib.OK:
-                    return None
+                    raise ObjectRetrievalException("Unable to retrieve object: " + id + " from " + get_parm("mobedac_host") + get_parm("mobedac_base_path") + object_path + "/" + id)
                 new_obj = cls({})
                 decoded_data = unidecode(data)
                 json_obj = json.loads(decoded_data)
                 new_obj.from_json(True, json_obj, sess_obj)
             return new_obj
-        except:
+        except ObjectRetrievalException as ore:
             exc_type, exc_value, exc_traceback = sys.exc_info()
             traceback.print_exception(exc_type, exc_value, exc_traceback)   
-            raise         
+            raise ore
+        except Exception as e:
+            raise ObjectRetrievalException("Unable to retrieve object: " + id + " error: " + str(e))
+
+        
         finally:
             if conn != None:
                 conn.close() 

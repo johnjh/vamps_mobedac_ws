@@ -18,6 +18,7 @@ from ftplib import FTP
 from rest_log import mobedac_logger
 from dbconn import vampsSession, test_engine
 from submission_detailsorm import SubmissionDetailsORM
+from submission_exception import SubmissionException
 
 
 class SubmissionORM(Base, BaseMoBEDAC):
@@ -97,23 +98,56 @@ class SubmissionORM(Base, BaseMoBEDAC):
     
 
     def initialize_for_processing(self, sess_obj):
-        # make sure to write this submission out before anything
-        sess_obj.add(self)
-        sess_obj.commit()
-
+        
         # need to call back to mobedac and figure out all the other objects etc
         libraries = self.library_ids
         # now loop and gather all info
         project_hash = {}
         sample_hash = {}
         library_hash = {}
-        sequence_set_hash = {}
+        detail_objs = []
         for lib_id in libraries:
-            library_hash[lib_id] = curr_library = LibraryORM.get_remote_instance(lib_id, None, sess_obj)
+            try:
+                library_hash[lib_id] = curr_library = LibraryORM.get_remote_instance(lib_id, None, sess_obj)
+            except Exception as e:
+                # some kind of error 
+                raise SubmissionException("There was an error retrieving library: " + lib_id + " error: " + e.value)
+                
             sample_id = curr_library.sample_id
-            sample_hash[sample_id] = curr_sample = SampleORM.get_remote_instance(sample_id, None, sess_obj)
+            try:
+                sample_hash[sample_id] = curr_sample = SampleORM.get_remote_instance(sample_id, None, sess_obj)
+            except Exception as e:
+                # some kind of error 
+                raise SubmissionException("There was an error retrieving sample: " + sample_id + " error: " + e.value)
+            
             project_id = curr_sample.project_id
-            project_hash[project_id] = curr_project = ProjectORM.get_remote_instance(project_id, None, sess_obj)
+            try:
+                project_hash[project_id] = curr_project = ProjectORM.get_remote_instance(project_id, None, sess_obj)
+            except Exception as e:
+                # some kind of error 
+                raise SubmissionException("There was an error retrieving project: " + project_id + " error: " + e.value)
+
+            # do some sanity check/validation on the library and project information
+            if not(curr_library.domain):
+                raise SubmissionException("The library: " + lib_id + " is missing a domain")
+            if not(curr_library.region):
+                raise SubmissionException("The library: " + lib_id + " is missing a region")
+            if not(curr_project.get_metadata_json()['project_code']):
+                raise SubmissionException("The project: " + lib_id + " is missing a project_code")
+            #check the primers
+            primers = json.loads(curr_library.primers)
+            # if only 1 primer and it isn't a BOTH direction then complain
+            forward_found = False
+            reverse_found = False
+            for primer in primers:
+                dir = primer['direction'].lower()
+                if dir == 'f':
+                    forward_found = True
+                elif dir == 'f':
+                    reverse_found = True
+            if not(forward_found) or not(reverse_found):
+                raise SubmissionException("You must supply at least 1 forward primer and 1 reverse primer.")
+            
             # now what will the official project name be in vamps for this library?
             curr_library_domain = curr_library.domain
             curr_library_region = curr_library.region
@@ -121,21 +155,27 @@ class SubmissionORM(Base, BaseMoBEDAC):
             vamps_project_name = curr_project.get_metadata_json()['project_code'] + domain_region_suffix
             # now create the submission details objects
             new_details = SubmissionDetailsORM(None)
-            new_details.submission_id = self.id
             new_details.project_id = project_id
             new_details.library_id = lib_id
             new_details.sample_id = sample_id
             new_details.region = curr_library_region.lower()
             new_details.vamps_project_name = vamps_project_name
+            detail_objs.append(new_details)
             # mobedac uses periods...we don't want them
             dataset_name = curr_library.id.replace('.', '_')
             new_details.vamps_dataset_name = dataset_name
             new_details.sequenceset_id = curr_library.sequence_set_ids.split(", ")[0]
-            mbd_json = json.loads(curr_sample.mbd_metadata)
             new_details.next_action = SubmissionDetailsORM.ACTION_DOWNLOAD
-            sess_obj.add(new_details)
-            
-        # now set the status                
-        self.next_action = 'HALT'
-        sess_obj.commit()
-    
+
+        try:
+            # make sure to write this submission out before anything
+            sess_obj.add(self)
+            sess_obj.commit()
+            # now set the submission id into each of these submission_detail objects since everything worked out ok
+            # because only now do we have a submission id (self)
+            for new_detail in detail_objs:
+                new_detail.submission_id = self.id
+                sess_obj.add(new_detail)
+            sess_obj.commit()
+        except Exception as e:
+            raise SubmissionException("There was an error during submission: " + e.value)

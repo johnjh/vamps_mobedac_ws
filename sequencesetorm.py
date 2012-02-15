@@ -19,6 +19,7 @@ class SequenceSetORM(Base, BaseMoBEDAC):
     PROTEIN = "protein"
     PROVENANCE = "provenance"
     LIBRARY_ID = "library_id"
+    SEQUENCES = "sequences"
 
     id = Column(String(64), primary_key=True)
     name = Column(String(256))
@@ -31,6 +32,7 @@ class SequenceSetORM(Base, BaseMoBEDAC):
     protein = Column(Boolean)
     provenance = Column(MEDIUMTEXT)
     library_id = Column(String(64), ForeignKey('library.id'))
+    sequences = Column(String(512))
     
     @classmethod
     def get_REST_sub_path(cls):
@@ -60,6 +62,7 @@ class SequenceSetORM(Base, BaseMoBEDAC):
         self.protein = json_obj[self.PROTEIN]
         self.set_attrs_from_json(json_obj, self.PROTEIN)
         self.set_attrs_from_json(json_obj, self.PROVENANCE)
+        self.set_attrs_from_json(json_obj, self.SEQUENCES)
         self.set_attrs_from_json(json_obj, self.LIBRARY_ID)
         return self
     
@@ -70,6 +73,7 @@ class SequenceSetORM(Base, BaseMoBEDAC):
         self.dump_attr(parts,self.type, self.TYPE)
         self.dump_attr(parts,self.protein, self.PROTEIN)
         self.dump_attr(parts,self.provenance, self.PROVENANCE)
+        self.dump_attr(parts,self.provenance, self.SEQUENCES)
         self.dump_attr(parts,self.library_id, self.LIBRARY_ID)
         result =  ",".join(parts)
         print result

@@ -23,6 +23,7 @@ import sys
 import traceback
 from initparms import get_parm
 from submission_detailsorm import SubmissionDetailsORM
+import urllib2
 
 
 class Submission_Processor (threading.Thread):
@@ -222,19 +223,36 @@ class Submission_Processor (threading.Thread):
     # call back to MoBEDAC and get the sequence file....could take a long time
     def download_sequence_file(self, detail, sequence_set, processing_dir):
         try:
-            # this will eventually be a URL on mobedac that should get us a stream object?
-            mobedac_file_path = get_parm("test_sequence_file_path") + sequence_set.id + ".fa"
-            mobedac_file = open(mobedac_file_path, "r")
-            raw_seq_file_name = Submission_Processor.MOBEDAC_SEQUENCE_FILE_NAME
-            raw_seq_file = open(processing_dir + "/" + raw_seq_file_name, 'w')
-            buffer_size=8192
-            while 1:
-                copy_buffer = mobedac_file.read(buffer_size)
-                if copy_buffer:
-                    raw_seq_file.write(copy_buffer)
-                else:
-                    break
-            raw_seq_file.close()
+            # dev mode?
+            if get_parm("remote_objects_are_local").lower() == 'true':
+                # this will eventually be a URL on mobedac that should get us a stream object?
+                mobedac_file_path = get_parm("test_sequence_file_path") + sequence_set.id + ".fa"
+                mobedac_file = open(mobedac_file_path, "r")
+                raw_seq_file_name = Submission_Processor.MOBEDAC_SEQUENCE_FILE_NAME
+                raw_seq_file = open(processing_dir + "/" + raw_seq_file_name, 'w')
+                buffer_size=8192
+                while 1:
+                    copy_buffer = mobedac_file.read(buffer_size)
+                    if copy_buffer:
+                        raw_seq_file.write(copy_buffer)
+                    else:
+                        break
+                mobedac_file.close()
+                raw_seq_file.close()
+            else:
+                # open the sequence set file on mobedac and try to download it
+                mobedac_file = urllib2.urlopen(sequence_set.sequences) 
+                raw_seq_file_name = Submission_Processor.MOBEDAC_SEQUENCE_FILE_NAME
+                raw_seq_file = open(processing_dir + "/" + raw_seq_file_name, 'w')
+                buffer_size=8192
+                while 1:
+                    copy_buffer = mobedac_file.read(buffer_size)
+                    if copy_buffer:
+                        raw_seq_file.write(copy_buffer)
+                    else:
+                        break
+                mobedac_file.close()
+                raw_seq_file.close()
         except:
             self.log_to_submission_detail(detail, "Error during retrieving of sequence data from MoBEDAC")
             raise
@@ -368,8 +386,13 @@ class Submission_Processor (threading.Thread):
         
     def create_primer_file(self, primer_array, primer_file_name):
         primer_file = open(primer_file_name, 'w')
+        p_index = 0
         for primer in primer_array:
+            # force in some defaults...maybe mobedac won't have them
+            primer["name"] = primer.get("name", "p_" + str(p_index))
+            primer["location"] = primer.get("location", "p_" + str(p_index))
             primer_line = Template("$name\t$direction\t$sequence\t$regions\t$location\n").substitute(primer)
             primer_file.write(primer_line)
+            p_index += 1
         primer_file.close()
     
