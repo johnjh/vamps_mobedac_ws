@@ -31,7 +31,7 @@ class RESTResource(object):
         try:
             if len(vpath) == 0:
                 all = self.orm_class.get_all(current_session)
-                return str(all)
+                return all
             else:
                 if "query" == vpath[0]:
                     # do a query to find children objects

@@ -199,6 +199,7 @@ CREATE TABLE `sequenceset` (
   `protein` tinyint(1) DEFAULT NULL,
   `library_id` varchar(64) NOT NULL,
   `provenance` mediumtext,
+  `sequences` varchar(512) DEFAULT NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `name_UNIQUE` (`name`),
   KEY `library_id` (`library_id`)
@@ -218,7 +219,7 @@ CREATE TABLE `submission` (
   `analysis_params_str` varchar(1024) DEFAULT NULL,
   `user` varchar(32) DEFAULT NULL,
   PRIMARY KEY (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=48 DEFAULT CHARSET=latin1;
+) ENGINE=InnoDB AUTO_INCREMENT=57 DEFAULT CHARSET=latin1;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -244,7 +245,7 @@ CREATE TABLE `submission_details` (
   PRIMARY KEY (`id`),
   KEY `submission_id` (`submission_id`),
   CONSTRAINT `submission_details_ibfk_2` FOREIGN KEY (`submission_id`) REFERENCES `submission` (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=55 DEFAULT CHARSET=latin1;
+) ENGINE=InnoDB AUTO_INCREMENT=63 DEFAULT CHARSET=latin1;
 /*!40101 SET character_set_client = @saved_cs_client */;
 /*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
 
@@ -256,4 +257,4 @@ CREATE TABLE `submission_details` (
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
--- Dump completed on 2012-02-13  9:12:01
+-- Dump completed on 2012-02-16 10:36:44

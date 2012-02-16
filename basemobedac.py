@@ -63,10 +63,10 @@ class BaseMoBEDAC():
     @classmethod
     def get_all(self,sess):
         try:
-            objs = {}
+            obj_strs = []
             for row in sess.query(self).order_by(self.id).all():
-                objs[str(row.id)] = row.to_json()
-            return objs
+                obj_strs.append(('"%s" :' % row.id) + ("{%s}" % row.to_json(sess)))
+            return ",\n".join(obj_strs)
         except NoResultFound:
             # this is ok
             return None

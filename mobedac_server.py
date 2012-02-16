@@ -75,7 +75,9 @@ if __name__ == '__main__':
         mobedac_logger.debug("in main of mobedac_server")
 
         submission_processor_thread = Submission_Processor(10, get_parm('vamps_data_post_url'), get_parm('vamps_data_gast_url'), workingfiledir)
-#        submission_processor_thread.disable_processing()
+        disable_processor_flag = get_parm("processor_disabled_on_startup")
+        if disable_processor_flag != None and disable_processor_flag.lower() == 'true':
+            submission_processor_thread.disable_processing()
         submission_processor_thread.start()
         cherrypy.config.update({'server.socket_port': int(port),})
         the_root = Root(submission_processor_thread)

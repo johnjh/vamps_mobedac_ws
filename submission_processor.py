@@ -53,9 +53,11 @@ class Submission_Processor (threading.Thread):
         self.exitFlag = True
         
     def disable_processing(self):   
+        self.log_debug("Disabling processor")
         self.halt_processing = True
         
     def enable_processing(self):   
+        self.log_debug("Enabling processor")
         self.halt_processing = False
 
     def log_to_submission_detail(self, submission_detail, msg):
