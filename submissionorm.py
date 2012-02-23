@@ -143,7 +143,7 @@ class SubmissionORM(Base, BaseMoBEDAC):
                 dir = primer['direction'].lower()
                 if dir == 'f':
                     forward_found = True
-                elif dir == 'f':
+                elif dir == 'r':
                     reverse_found = True
             if not(forward_found) or not(reverse_found):
                 raise SubmissionException("You must supply at least 1 forward primer and 1 reverse primer.")

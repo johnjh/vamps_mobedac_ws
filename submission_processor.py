@@ -17,7 +17,9 @@ import shutil
 from poster import streaminghttp 
 from poster import encode
 import urllib2, urllib
+from urllib2 import URLError, HTTPError
 from sqlalchemy import *
+from sqlalchemy import  and_
 from dbconn import Session,vampsSession
 import sys
 import traceback
@@ -32,6 +34,7 @@ class Submission_Processor (threading.Thread):
     
     # some VAMPS processing code
     VAMPS_TRIM_SUCCESS = "TRIM_SUCCESS"
+    VAMPS_GAST_COMPLETE = "GAST_COMPLETE"
     
     def __init__(self, sleep_seconds, vamps_upload_url, vamps_gast_url, processing_dir):
         self.sleep_seconds = sleep_seconds
@@ -112,13 +115,131 @@ class Submission_Processor (threading.Thread):
                 self.perform_action_on_submissions(SubmissionDetailsORM.ACTION_GAST)
                 if self.exitFlag:
                     return;
+                self.return_results_to_mobedac()
+                if self.exitFlag:
+                    return;
 
+    # see if there are any complete sets of submission details 
+    # that we can process and perhaps generate the tax table and return that to MoBEDAC
+    def return_results_to_mobedac(self):
+        self.sess_obj = None
+        try:
+            self.sess_obj = Session()
+            details_hashed_by_submission_id = {}
+                
+            # get all submission detail objects that have a status of 'post_results_to_mobedac'
+            for detail in self.sess_obj.query(SubmissionDetailsORM).filter(SubmissionDetailsORM.next_action == SubmissionDetailsORM.ACTION_POST_RESULTS_TO_MOBEDAC).all():
+                detailed_array_by_submission_id = details_hashed_by_submission_id.get(detail.submission_id, None)
+                if detailed_array_by_submission_id == None:
+                    details_hashed_by_submission_id[detail.submission_id] = []
+                details_hashed_by_submission_id[detail.submission_id].append(detail)
+                
+            # now loop over all the arrays of detail objects
+            completed_detail_hashs_by_submission_id = {}
+            for key, value in  details_hashed_by_submission_id.items():
+                # for this submission id are all of the detail submission objects in the correct state?
+                # run a query that finds all submission detail objects that have this submission_id
+                # and that don't have the SubmissionDetailsORM.ACTION_POST_RESULTS_TO_MOBEDAC value
+                # as their next action.  if we find any then we know that this submission object has detail
+                # objects that have not completed processing..so skip this submission object
+                if len(self.sess_obj.query(SubmissionDetailsORM).filter(and_(SubmissionDetailsORM.submission_id == key, SubmissionDetailsORM.next_action != SubmissionDetailsORM.ACTION_POST_RESULTS_TO_MOBEDAC)).all()) > 0:
+                    self.log_debug("There is a submission detail object associated with submission object: " + str(key) + " that does not have a next_action of: post_results_to_mobedac")
+                    continue  # found a submission detail object attached to this submission object that does not have the expected 'action' status...so skip this submission object
+                completed_detail_hashs_by_submission_id[key] = value
+                self.log_debug("All the submission details of submission: " + str(key) + " have the correct state of 'post_results_to_mobedac' so will process it now...get tax table and return it to mobedac")
+                # now do the work on each of these sets of details....send the data back to mobedac
+                # loop through all the details in here and produce a list of datasets, and project counts
+                sampleOrderNames = []
+                library_ids = []
+                unique_project_names = {}
+                some_detail_has_incomplete_gasting = False
+                for detail in value:
+                    status_row = detail.get_VAMPS_submission_status_row(self.sess_obj)
+                    if status_row == None:
+                        raise "Error locating vamps_upload_status record found for submission_detail: " + detail.id + " vamps_status_id: " + str(detail.vamps_status_record_id)
+                    if status_row[0] != self.VAMPS_GAST_COMPLETE:
+                        self.log_debug("Can't return results to MoBEDAC submissiondetail: " + str(detail.id) + " yet, VAMPS status is still: " + status_row[0])
+                        some_detail_has_incomplete_gasting = True
+                        break
+                    # keep track of unique project names by using a dictionary
+                    unique_project_names[detail.vamps_project_name] = detail.vamps_project_name
+                    # keep a list of project-dataset names
+                    sampleOrderNames.append(detail.vamps_project_name + "--" + detail.vamps_dataset_name)
+                    # and library ids
+                    library_ids.append(detail.library_id)
+                    
+                if some_detail_has_incomplete_gasting:
+                    continue # don't return results for this submission since there is still some processing going on
+                
+                # now we have all the sampleOrder names set up and a hash of the unique project names (we just want a count of those)
+                project_count = len(unique_project_names)
+                # find out the user
+                submission = SubmissionORM.get_instance(key, self.sess_obj)
+                taxonomy_table_json = self.get_taxonomy_table(project_count, sampleOrderNames, submission.user, 'family')
+                if taxonomy_table_json == None:
+                    continue
+                # send the tax table to mobedac
+                success = self.send_to_mobedac(library_ids, taxonomy_table_json)
+                # if all went well then mark all the details as complete
+                if(success):
+                    for detail in value:
+                        detail.next_action = SubmissionDetailsORM.ACTION_PROCESSING_COMPLETE
+                    self.sess_obj.commit()
+        except:
+            self.log_exception("Got exception during taxonomy generation and mobedac sending")
+        
+    # post the analysis results back to MoBEDAC
+    # don't have the analysis links yet. 
+    def send_to_mobedac(self,library_ids, taxonomy_table_json):
+        mobedac_results_url = get_parm('mobedac_results_url')
+        results_json = { "analysis_system" : "VAMPS",
+                        "libraries"        : library_ids,
+                        "analysis_links"   : [],
+                        "taxonomy_table"   : json.loads(taxonomy_table_json)    
+                        }        
+        values = {'data' : json.dumps(results_json)}                
+        data = urllib.urlencode(values)
+        try:  
+            # send it
+            req = urllib2.Request(mobedac_results_url, data)
+            response = urllib2.urlopen(req)
+            return True        
+        except HTTPError, e:
+            self.log_debug('Error sending results to MoBEDAC, error code: ' + e.code)
+            return False
+        except URLError, e:
+            self.log_debug('We failed to reach MoBEDAC server at: ' + mobedac_results_url + ' reason: ' + str(e.reason))           
+            return False            
+        
+    
+    # call VAMPS to get tax table....if we fail then just return a None so we can deal with it better
+    def get_taxonomy_table(self, project_count, projectDatasetNames, user, rank):
+        taxonomy_table_url = get_parm('vamps_taxonomy_table_url')
+        values = {'sampleOrder' : ",".join(projectDatasetNames),
+                  'userProjects' : project_count,
+                  'user' : user,
+                  'taxonomicRank' : rank}                
+        data = urllib.urlencode(values)
+        try:
+            # generate the taxonomy table from VAMPS
+            req = urllib2.Request(taxonomy_table_url, data)
+            response = urllib2.urlopen(req)
+            return response.read()        
+        except HTTPError, e:
+            self.log_debug('Error generating taxonomy table code: ' + e.code)
+            return None
+        except URLError, e:
+            self.log_debug('We failed to reach the VAMPS server: ' + e.reason)             
+            return None            
+        
+            
     # perform the action on the submissions in the db
     def perform_action_on_submissions(self, action):
         self.sess_obj = None
         try:
             self.sess_obj = Session()
             details_hashed_by_submission_id = {}
+                
             # get all pending submission detail objects and put them in a hash where each key is the submission id
             # and each value is an array of detail objects
             for detail in self.sess_obj.query(SubmissionDetailsORM).filter(SubmissionDetailsORM.next_action == action).all():
@@ -167,7 +288,7 @@ class Submission_Processor (threading.Thread):
         finally:
             self.sess_obj.close()
             self.sess_obj = None
-            
+                
     def gast(self, submission, submissiondetail_array):
         try:
             # so we can have a collection of submissions to gast
@@ -199,7 +320,7 @@ class Submission_Processor (threading.Thread):
                 raise "Error starting GAST processing in VAMPS: " + response.msg
             # must have submitted ok so mark them all
             for detail in submissiondetail_array:                          
-                detail.next_action = SubmissionDetailsORM.ACTION_GAST_COMPLETE
+                detail.next_action = SubmissionDetailsORM.ACTION_POST_RESULTS_TO_MOBEDAC
             self.sess_obj.commit()
         except:
             self.log_exception("Some kind of error preparing to or actually calling VAMPS to GAST")

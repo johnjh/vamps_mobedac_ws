@@ -22,7 +22,8 @@ class SubmissionDetailsORM(Base, BaseMoBEDAC):
     ACTION_DOWNLOAD = "download"
     ACTION_VAMPS_UPLOAD = "vamps_upload"
     ACTION_GAST = "gast"
-    ACTION_GAST_COMPLETE = "gast_complete"
+    ACTION_POST_RESULTS_TO_MOBEDAC = "post_results_to_mobedac"
+    ACTION_PROCESSING_COMPLETE = "processing_complete"
     
     
     ID = "id"
@@ -117,7 +118,7 @@ class SubmissionDetailsORM(Base, BaseMoBEDAC):
                     # for now
                     msg = "The data was successfully uploaded and quality checked by VAMPS and is awaiting GAST processing"
                     code = self.PROCESSING_STATUS
-            elif self.next_action == self.ACTION_GAST_COMPLETE:
+            elif self.next_action == self.ACTION_POST_RESULTS_TO_MOBEDAC:
                 # at this point the WS started up the GAST on VAMPS and so we need to check
                 # with VAMPS to check the VAMPS Gasting status
                 vamps_status_row = self.get_VAMPS_submission_status_row(None)  
@@ -126,11 +127,14 @@ class SubmissionDetailsORM(Base, BaseMoBEDAC):
                     msg = "The VAMPS system is performing GAST processing."   
                     code = self.PROCESSING_STATUS
                 elif status == 'GAST_SUCCESS':
-                    msg = "The VAMPS system has successfully completed the GAST processing."   
-                    code = self.COMPLETE_SUCCESS_STATUS
+                    msg = "The VAMPS system has successfully completed the GAST processing. And needs to be returned to MoBEDAC"   
+                    code = self.PROCESSING_STATUS
                 elif status == 'GAST_ERROR':
                     msg = "There was an error during GAST processing"
                     code = self.ERROR_STATUS
+            elif self.next_action == self.ACTION_PROCESSING_COMPLETE:
+                msg = "Processing is complete and data has been returned to MoBEDAC."
+                code = self.COMPLETE_SUCCESS_STATUS
             else:
                 # this is kind of an error state?
                 msg = "The submission is in state: " + self.next_action
