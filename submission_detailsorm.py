@@ -77,9 +77,9 @@ class SubmissionDetailsORM(Base, BaseMoBEDAC):
     
     def get_VAMPS_submission_status_row(self, sess_obj):
         vamps_session = None
+        session_to_use = None
         try:
-            session_to_use = None
-            if false: #environment == 'test':
+            if False: #environment == 'test':
                 session_to_use = sess_obj
             else:
                 session_to_use = vampsSession()
