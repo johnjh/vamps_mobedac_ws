@@ -9,6 +9,7 @@ from dec_base import Base
 from libraryorm import LibraryORM
 from rest_log import mobedac_logger
 from dbconn import vampsSession, test_engine
+from initparms import environment
 
 
 class SubmissionDetailsORM(Base, BaseMoBEDAC):
@@ -77,14 +78,20 @@ class SubmissionDetailsORM(Base, BaseMoBEDAC):
     def get_VAMPS_submission_status_row(self, sess_obj):
         vamps_session = None
         try:
-            vamps_session = vampsSession()
-            result_row = vamps_session.execute("SELECT status, status_message FROM vamps_upload_status where id=:id", {'id':self.vamps_status_record_id}).first()      
+            session_to_use = None
+            if false: #environment == 'test':
+                session_to_use = sess_obj
+            else:
+                session_to_use = vampsSession()
+            result_row = session_to_use.execute("SELECT status, status_message FROM vamps_upload_status where id=:id", {'id':self.vamps_status_record_id}).first()      
             return result_row
         except:
             mobedac_logger.exception("submissionORM error retrieving vamps_upload_status with id: " + self.vamps_status_record_id)
             raise
         finally:
-            vamps_session.close()
+            # if using the vamps db session then close it...the other one will be closed by the request processing thread or whoever
+            if environment != 'test':
+                session_to_use.close()
     
     def get_current_status(self):
         status = {}

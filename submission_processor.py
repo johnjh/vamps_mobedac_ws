@@ -34,7 +34,7 @@ class Submission_Processor (threading.Thread):
     
     # some VAMPS processing code
     VAMPS_TRIM_SUCCESS = "TRIM_SUCCESS"
-    VAMPS_GAST_COMPLETE = "GAST_COMPLETE"
+    VAMPS_GAST_COMPLETE = "GAST_SUCCESS"
     
     def __init__(self, sleep_seconds, vamps_upload_url, vamps_gast_url, processing_dir):
         self.sleep_seconds = sleep_seconds
