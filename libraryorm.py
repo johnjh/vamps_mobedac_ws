@@ -72,11 +72,6 @@ class LibraryORM(Base, BaseMoBEDAC):
         self.set_attrs_from_json(json_obj, self.LIB_TYPE)
         self.set_attrs_from_json(json_obj, self.LIB_INSERT_LEN)
 
-        self.set_attrs_from_json(json_obj, self.RUN_KEY)
-        self.primers = json.dumps(json_obj[self.PRIMERS])
-        self.set_attrs_from_json(json_obj, self.DIRECTION)
-        self.set_attrs_from_json(json_obj, self.REGION)
-        self.set_attrs_from_json(json_obj, self.DOMAIN)
         self.set_attrs_from_json(json_obj, self.SAMPLE_ID)
         self.sequence_set_ids = ",".join(json_obj['sequence_set_ids'])
         
@@ -91,11 +86,6 @@ class LibraryORM(Base, BaseMoBEDAC):
         # dump derived parts here
         self.dump_attr(parts,self.lib_type, self.LIB_TYPE)
         self.dump_attr(parts,self.lib_insert_len, self.LIB_INSERT_LEN)
-        self.dump_attr(parts,self.run_key, self.RUN_KEY)
-        self.dump_attr(parts,json.loads(self.primers), self.PRIMERS)
-        self.dump_attr(parts,self.direction, self.DIRECTION)
-        self.dump_attr(parts,self.region, self.REGION)
-        self.dump_attr(parts,self.domain, self.DOMAIN)
         self.dump_attr(parts,self.sample_id, self.SAMPLE_ID)
         #self.dump_attr(parts,self.pi, ProjectORM.PROJECT_PI)
         self.dump_collection_attr(parts, self.sequencesets, self.SEQUENCESET_ID_ARRAY)
@@ -104,5 +94,34 @@ class LibraryORM(Base, BaseMoBEDAC):
         print result
         return result
    
+    def get_run_key(self):
+        lib_metadata = json.loads(self.mbd_metadata)
+        return lib_metadata['run_key']
+        
+    def get_direction(self):
+        lib_metadata = json.loads(self.mbd_metadata)
+        return lib_metadata['direction']
+        
+    def get_domain(self):
+        lib_metadata = json.loads(self.mbd_metadata)
+        return lib_metadata['domain']
+        
+    def get_region(self):
+        lib_metadata = json.loads(self.mbd_metadata)
+        return lib_metadata['region']
+                
+    def get_primers(self):
+        lib_metadata = json.loads(self.mbd_metadata)
+        primer_count = int(lib_metadata['num_primers'])
+        primers = []
+        for i in range(1,primer_count+1):
+            primer = {}
+            primer['name'] = lib_metadata['primer_' + str(i) + '_name']
+            primer['direction'] = lib_metadata['primer_' + str(i) + '_direction']
+            primer['sequence'] = lib_metadata['primer_' + str(i) + '_sequence']
+            primer['regions'] = lib_metadata['primer_' + str(i) + '_region']
+            primer['location'] = lib_metadata['primer_' + str(i) + '_location']
+            primers.append(primer)
+        return primers
 
 

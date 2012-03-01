@@ -100,10 +100,10 @@ class Submission_Processor (threading.Thread):
         streaminghttp.register_openers()
         # start the work
         while True:
-            self.log_debug("top of processing loop about to sleep")
             # sleep 30 seconds...this should be parameterized
             time.sleep(30)
             if self.halt_processing == False:
+                self.log_debug("top of processing loop woke up from sleep...processing=TRUE")
                 if self.exitFlag:
                     return;
                 self.perform_action_on_submissions(SubmissionDetailsORM.ACTION_DOWNLOAD)
@@ -418,8 +418,7 @@ class Submission_Processor (threading.Thread):
             self.sess_obj.commit()
         except:
             self.log_to_submission(submission, "Error during preparation and UPLOAD to VAMPS")
-        
-        
+                
     # need to create 4 files to upload to VAMPS
     # sequence file, run key file, primer file and params file
     def create_and_upload(self, submission, submission_detail, project, library_obj): 
@@ -432,13 +431,13 @@ class Submission_Processor (threading.Thread):
 
         # now create the primer file
         # first get the owning Library
-        primers = json.loads(library_obj.primers)
+        primers = library_obj.get_primers()
         primer_file_name = processing_dir + "primers.txt"
         self.create_primer_file(primers, primer_file_name)
         
         # now create the key file
-        run_key = library_obj.run_key
-        key_hash = {"key" : run_key, "direction" : library_obj.direction,
+        run_key = library_obj.get_run_key()
+        key_hash = {"key" : run_key, "direction" : library_obj.get_direction(),
                     "region" : submission_detail.region, "project" : submission_detail.vamps_project_name, "dataset" : submission_detail.vamps_dataset_name}
         run_key_file_name = processing_dir + "run_key.txt"
         self.write_run_key_file(run_key_file_name, key_hash)

@@ -128,14 +128,14 @@ class SubmissionORM(Base, BaseMoBEDAC):
                 raise SubmissionException("There was an error retrieving project: " + project_id + " error: " + e.value)
 
             # do some sanity check/validation on the library and project information
-            if not(curr_library.domain):
+            if not(curr_library.get_domain()):
                 raise SubmissionException("The library: " + lib_id + " is missing a domain")
-            if not(curr_library.region):
+            if not(curr_library.get_region()):
                 raise SubmissionException("The library: " + lib_id + " is missing a region")
             if not(curr_project.get_metadata_json()['project_code']):
                 raise SubmissionException("The project: " + lib_id + " is missing a project_code")
             #check the primers
-            primers = json.loads(curr_library.primers)
+            primers = curr_library.get_primers()
             # if only 1 primer and it isn't a BOTH direction then complain
             forward_found = False
             reverse_found = False
@@ -149,8 +149,8 @@ class SubmissionORM(Base, BaseMoBEDAC):
                 raise SubmissionException("You must supply at least 1 forward primer and 1 reverse primer.")
             
             # now what will the official project name be in vamps for this library?
-            curr_library_domain = curr_library.domain
-            curr_library_region = curr_library.region
+            curr_library_domain = curr_library.get_domain()
+            curr_library_region = curr_library.get_region()
             domain_region_suffix = '_' + curr_library_domain[0].upper() + curr_library_region.lower()
             vamps_project_name = curr_project.get_metadata_json()['project_code'] + domain_region_suffix
             # now create the submission details objects

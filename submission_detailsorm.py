@@ -90,7 +90,7 @@ class SubmissionDetailsORM(Base, BaseMoBEDAC):
             raise
         finally:
             # if using the vamps db session then close it...the other one will be closed by the request processing thread or whoever
-            if environment != 'test':
+            if environment == 'test':
                 session_to_use.close()
     
     def get_current_status(self):

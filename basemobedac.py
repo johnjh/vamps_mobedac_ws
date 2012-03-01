@@ -32,7 +32,7 @@ class BaseMoBEDAC():
                 headers = {'content-type': 'application/json'}
                 conn = httplib.HTTPConnection(get_parm("mobedac_host"))
                 object_path = cls.get_REST_sub_path()
-                conn.request("GET", get_parm("mobedac_base_path") + object_path + "/" + id)
+                conn.request("GET", get_parm("mobedac_base_path") + object_path + "/" + id + "?auth=" + get_parm("mobedac_auth_key"))
                 response = conn.getresponse()
                 data = response.read()
                 # if all went ok then build an object
