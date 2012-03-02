@@ -8,6 +8,7 @@ from sqlalchemy.orm import relationship, backref
 from dec_base import Base
 from sequencesetorm import SequenceSetORM
 import json as json 
+from rest_log import mobedac_logger
 
 #library_sequenceset_table = Table('librarysequenceset', Base.metadata,
 #    Column('library_id', Integer, ForeignKey('library.id')),
@@ -17,14 +18,12 @@ class LibraryORM(Base, BaseMoBEDAC):
     SEQUENCESET_ID_ARRAY = "sequence_sets"
     LIB_TYPE = "lib_type"
     LIB_INSERT_LEN = "lib_insert_len"
-    SAMPLE_ID = "sample_id"
+    SAMPLE = "sample"
     RUN_KEY = "run_key"
     PRIMERS = "primers"
     DIRECTION = "direction"
     REGION = "region"
     DOMAIN = "domain"
-    
-    sample_id = Column(String(64), ForeignKey('sample.id'))
     
     id = Column(String(64), primary_key=True)
     name = Column(String(256))
@@ -41,7 +40,7 @@ class LibraryORM(Base, BaseMoBEDAC):
     region = Column(String(32))
     domain = Column(String(32))
     sequence_set_ids = Column(String(512))
-
+    sample = ""
     
     @classmethod
     def get_REST_sub_path(cls):
@@ -70,9 +69,9 @@ class LibraryORM(Base, BaseMoBEDAC):
         self.set_attrs_from_json(json_obj, self.LIB_TYPE)
         self.set_attrs_from_json(json_obj, self.LIB_INSERT_LEN)
 
-        self.set_attrs_from_json(json_obj, self.SAMPLE_ID)
-        self.sequence_set_ids = json.dumps(json_obj[self.SEQUENCESET_ID_ARRAY])  # just keep this as a string everywhere until being used
-        
+        self.set_attrs_from_json(json_obj, self.SAMPLE)
+        self.sequence_set_ids = ",".join(json_obj[self.SEQUENCESET_ID_ARRAY])  # just keep this as a string everywhere until being used
+        mobedac_logger.info("library has sequence set ids: " + self.sequence_set_ids)
         # now put the objects into the real child collection
         # have to do deletes on all existing child sample associations that are not in the new sample set
 #        BaseMoBEDAC.update_child_collection(SequenceSetORM, self.sequencesets, json_obj[LibraryORM.SEQUENCESET_IDS], sess_obj)
@@ -84,7 +83,7 @@ class LibraryORM(Base, BaseMoBEDAC):
         # dump derived parts here
         self.dump_attr(parts,self.lib_type, self.LIB_TYPE)
         self.dump_attr(parts,self.lib_insert_len, self.LIB_INSERT_LEN)
-        self.dump_attr(parts,self.sample_id, self.SAMPLE_ID)
+        self.dump_attr(parts,self.sample, self.SAMPLE)
         self.dump_attr(parts,json.loads(self.sequence_set_ids), self.SEQUENCESET_ID_ARRAY)
 
         result =  ",".join(parts)

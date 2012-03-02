@@ -113,14 +113,14 @@ class SubmissionORM(Base, BaseMoBEDAC):
                 # some kind of error 
                 raise SubmissionException("There was an error retrieving library: " + lib_id + " error: " + e.value)
                 
-            sample_id = curr_library.sample_id
+            sample_id = curr_library.sample
             try:
                 sample_hash[sample_id] = curr_sample = SampleORM.get_remote_instance(sample_id, None, sess_obj)
             except Exception as e:
                 # some kind of error 
                 raise SubmissionException("There was an error retrieving sample: " + sample_id + " error: " + e.value)
             
-            project_id = curr_sample.project_id
+            project_id = curr_sample.project
             try:
                 project_hash[project_id] = curr_project = ProjectORM.get_remote_instance(project_id, None, sess_obj)
             except Exception as e:
@@ -165,6 +165,7 @@ class SubmissionORM(Base, BaseMoBEDAC):
             dataset_name = curr_library.id.replace('.', '_')
             new_details.vamps_dataset_name = dataset_name
             new_details.sequenceset_id = curr_library.get_sequence_set_id_array()[0] # just take the first one for now
+            mobedac_logger.info("new_details has sequence set id: " + new_details.sequenceset_id)
             new_details.next_action = SubmissionDetailsORM.ACTION_DOWNLOAD
 
         try:
