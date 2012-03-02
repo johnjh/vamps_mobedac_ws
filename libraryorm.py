@@ -14,7 +14,7 @@ import json as json
 #    Column('sequenceset_id', Integer, ForeignKey('sequenceset.id')))
 class LibraryORM(Base, BaseMoBEDAC):
     __tablename__ = 'library'
-    SEQUENCESET_ID_ARRAY = "sequencesets"
+    SEQUENCESET_ID_ARRAY = "sequence_sets"
     LIB_TYPE = "lib_type"
     LIB_INSERT_LEN = "lib_insert_len"
     SAMPLE_ID = "sample_id"
@@ -42,8 +42,6 @@ class LibraryORM(Base, BaseMoBEDAC):
     domain = Column(String(32))
     sequence_set_ids = Column(String(512))
 
-#    sequencesets = relationship("SequenceSetORM",secondary=library_sequenceset_table)    
-    sequencesets = relationship("SequenceSetORM")    
     
     @classmethod
     def get_REST_sub_path(cls):
@@ -73,7 +71,7 @@ class LibraryORM(Base, BaseMoBEDAC):
         self.set_attrs_from_json(json_obj, self.LIB_INSERT_LEN)
 
         self.set_attrs_from_json(json_obj, self.SAMPLE_ID)
-        self.sequence_set_ids = ",".join(json_obj['sequence_set_ids'])
+        self.sequence_set_ids = json.dumps(json_obj[self.SEQUENCESET_ID_ARRAY])  # just keep this as a string everywhere until being used
         
         # now put the objects into the real child collection
         # have to do deletes on all existing child sample associations that are not in the new sample set
@@ -87,12 +85,14 @@ class LibraryORM(Base, BaseMoBEDAC):
         self.dump_attr(parts,self.lib_type, self.LIB_TYPE)
         self.dump_attr(parts,self.lib_insert_len, self.LIB_INSERT_LEN)
         self.dump_attr(parts,self.sample_id, self.SAMPLE_ID)
-        #self.dump_attr(parts,self.pi, ProjectORM.PROJECT_PI)
-        self.dump_collection_attr(parts, self.sequencesets, self.SEQUENCESET_ID_ARRAY)
+        self.dump_attr(parts,json.loads(self.sequence_set_ids), self.SEQUENCESET_ID_ARRAY)
 
         result =  ",".join(parts)
         print result
         return result
+    
+    def get_sequence_set_id_array(self):
+        return json.loads(self.sequence_set_ids)
    
     def get_run_key(self):
         lib_metadata = json.loads(self.mbd_metadata)

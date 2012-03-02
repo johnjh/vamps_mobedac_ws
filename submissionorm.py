@@ -164,7 +164,7 @@ class SubmissionORM(Base, BaseMoBEDAC):
             # mobedac uses periods...we don't want them
             dataset_name = curr_library.id.replace('.', '_')
             new_details.vamps_dataset_name = dataset_name
-            new_details.sequenceset_id = curr_library.sequence_set_ids.split(", ")[0]
+            new_details.sequenceset_id = curr_library.get_sequence_set_id_array()[0] # just take the first one for now
             new_details.next_action = SubmissionDetailsORM.ACTION_DOWNLOAD
 
         try:
