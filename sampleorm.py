@@ -10,7 +10,7 @@ from libraryorm import LibraryORM
 
 class SampleORM(Base, BaseMoBEDAC):
     __tablename__ = 'sample'
-    PROJECT_ID = "project_id"
+    PROJECT = "project"
     LIBRARY_IDS = "libraries"
     
     id = Column(String(64), primary_key=True)
@@ -20,10 +20,10 @@ class SampleORM(Base, BaseMoBEDAC):
     version = Column(Integer)  
     mbd_metadata = Column('metadata',MEDIUMTEXT)
     creation = Column(DateTime)
-    project_id = Column(String(64), ForeignKey('project.id'))    
+    project = "" #Column(String(64), ForeignKey('project.id'))    
 
 #    libraries = relationship("LibraryORM",secondary=sample_library_table)    
-    libraries = relationship("LibraryORM")    
+#    libraries = relationship("LibraryORM")    
 
     @classmethod
     def get_REST_sub_path(cls):
@@ -50,16 +50,16 @@ class SampleORM(Base, BaseMoBEDAC):
     def from_json(self, is_create, json_obj, sess_obj):
         # do base attrs
         self.base_from_json(is_create, json_obj)
-        self.set_attrs_from_json(json_obj, SampleORM.PROJECT_ID)
+        self.set_attrs_from_json(json_obj, SampleORM.PROJECT)
         return self
     
     def to_json(self, sess_obj):
         base_json = BaseMoBEDAC.to_json(self, sess_obj)
         parts = [base_json]
         # dump derived parts here
-        self.dump_attr(parts,self.project_id, self.PROJECT_ID)
+        self.dump_attr(parts,self.project, self.PROJECT)
         
-        self.dump_collection_attr(parts, self.libraries, 'libraries')
+        #self.dump_collection_attr(parts, self.libraries, 'libraries')
         
         result =  ",".join(parts)
         print result
