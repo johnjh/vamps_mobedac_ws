@@ -27,7 +27,7 @@ class ProjectORM(Base, BaseMoBEDAC):
     version = Column(Integer)  
     mbd_metadata = Column('metadata',MEDIUMTEXT)
     creation = Column(DateTime)
-    samples = relationship("SampleORM")    
+    #samples = relationship("SampleORM")    
     
     # mine
     pi = Column(String(256))
@@ -74,7 +74,7 @@ class ProjectORM(Base, BaseMoBEDAC):
         self.dump_attr(parts,self.pi, ProjectORM.PROJECT_PI)
         self.dump_attr(parts,self.funding_source, ProjectORM.PROJECT_FUNDING_SOURCE)
         self.dump_attr(parts,self.description, ProjectORM.PROJECT_DESCRIPTION)
-        self.dump_collection_attr(parts, self.samples, 'samples')
+        #self.dump_collection_attr(parts, self.samples, 'samples')
         result =  ",".join(parts)
         print result
         return result

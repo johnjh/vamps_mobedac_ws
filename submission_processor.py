@@ -196,20 +196,21 @@ class Submission_Processor (threading.Thread):
     # don't have the analysis links yet. 
     def send_to_mobedac(self,library_ids, taxonomy_table_json):
         mobedac_results_url = get_parm('mobedac_results_url')
-        results_json = { "analysis_system" : "VAMPS",
+        results_dict = {
+                        "auth" : get_parm("mobedac_auth_key"),
+                        "analysis_system" : "VAMPS",
                         "libraries"        : library_ids,
                         "analysis_links"   : [],
                         "taxonomy_table"   : json.loads(taxonomy_table_json)    
                         }        
-        values = {'data' : json.dumps(results_json)}                
-        data = urllib.urlencode(values)
+        data = urllib.urlencode(results_dict)
         try:  
             # send it
             req = urllib2.Request(mobedac_results_url, data)
             response = urllib2.urlopen(req)
             return True        
         except HTTPError, e:
-            self.log_debug('Error sending results to MoBEDAC, error code: ' + e.code)
+            self.log_debug('Error sending results to MoBEDAC, error code: ' + str(e.code))
             return False
         except URLError, e:
             self.log_debug('We failed to reach MoBEDAC server at: ' + mobedac_results_url + ' reason: ' + str(e.reason))           
@@ -372,7 +373,8 @@ class Submission_Processor (threading.Thread):
                 conn = httplib.HTTPConnection(get_parm("mobedac_host"))
                 complete_url = get_parm("mobedac_base_path") + "sequenceSet/" + sequence_set_id + "?auth=" + get_parm("mobedac_auth_key")
                 self.log_info("processor attempting to retrieve sequenceSet: " + sequence_set_id + " url path: " + complete_url)
-                mobedac_response = conn.request("GET", complete_url)
+                conn.request("GET", complete_url)
+                mobedac_response = conn.getresponse()
                 raw_seq_file_name = Submission_Processor.MOBEDAC_SEQUENCE_FILE_NAME
                 raw_seq_file = open(processing_dir + "/" + raw_seq_file_name, 'w')
                 buffer_size=8192

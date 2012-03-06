@@ -8,7 +8,7 @@ import httplib, urllib
 from unidecode import unidecode
 from initparms import get_parm
 from object_retrieval_exception import ObjectRetrievalException
-
+from rest_log import mobedac_logger
 
 class BaseMoBEDAC():
     BASE_ID = "id"
@@ -42,6 +42,7 @@ class BaseMoBEDAC():
                     raise ObjectRetrievalException("Unable to retrieve object: " + id + " from host: " + get_parm('mobedac_host') + " url: " + complete_url)
                 new_obj = cls({})
                 decoded_data = unidecode(data)
+                mobedac_logger.info("json string for object id: " + id + " json: " + decoded_data)
                 json_obj = json.loads(decoded_data)
                 new_obj.from_json(True, json_obj, sess_obj)
             return new_obj

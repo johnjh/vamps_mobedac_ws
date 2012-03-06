@@ -91,7 +91,7 @@ class LibraryORM(Base, BaseMoBEDAC):
         return result
     
     def get_sequence_set_id_array(self):
-        return json.loads(self.sequence_set_ids)
+        return self.sequence_set_ids.split(",")
    
     def get_run_key(self):
         lib_metadata = json.loads(self.mbd_metadata)
@@ -117,7 +117,7 @@ class LibraryORM(Base, BaseMoBEDAC):
             primer = {}
             primer['name'] = lib_metadata['primer_' + str(i) + '_name']
             primer['direction'] = lib_metadata['primer_' + str(i) + '_direction']
-            primer['sequence'] = lib_metadata['primer_' + str(i) + '_sequence']
+            primer['sequence'] = lib_metadata['primer_' + str(i) + '_sequence'].replace("Z", "Y")
             primer['regions'] = lib_metadata['primer_' + str(i) + '_region']
             primer['location'] = lib_metadata['primer_' + str(i) + '_location']
             primers.append(primer)

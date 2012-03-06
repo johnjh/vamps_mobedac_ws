@@ -121,6 +121,7 @@ class RESTResource(object):
         cl = cherrypy.request.headers['Content-Length']
         rawbody = cherrypy.request.body.read(int(cl))
         decoded_rawbody = unidecode(rawbody)
+        mobedac_logger.info("restresource got JSON string: " + decoded_rawbody)
         json_obj = json.loads(decoded_rawbody)
         return json_obj
 
