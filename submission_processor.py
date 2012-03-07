@@ -183,7 +183,7 @@ class Submission_Processor (threading.Thread):
                 if taxonomy_table_json == None:
                     continue
                 # send the tax table to mobedac
-                success = self.send_to_mobedac(library_ids, taxonomy_table_json)
+                success = self.send_to_mobedac(submission, library_ids, taxonomy_table_json)
                 # if all went well then mark all the details as complete
                 if(success):
                     for detail in value:
@@ -194,7 +194,7 @@ class Submission_Processor (threading.Thread):
         
     # post the analysis results back to MoBEDAC
     # don't have the analysis links yet. 
-    def send_to_mobedac(self,library_ids, taxonomy_table_json):
+    def send_to_mobedac(self, submission, library_ids, taxonomy_table_json):
         mobedac_results_url = get_parm('mobedac_results_url')
         results_dict = {
                         "auth" : get_parm("mobedac_auth_key"),
@@ -203,11 +203,11 @@ class Submission_Processor (threading.Thread):
                         "analysis_links"   : [],
                         "taxonomy_table"   : json.loads(taxonomy_table_json)    
                         }        
-        data = urllib.urlencode(results_dict)
         try:  
             # send it
-            req = urllib2.Request(mobedac_results_url, data)
+            req = urllib2.Request(mobedac_results_url, json.dumps(results_dict), { 'Content-Type' : 'application/json' })
             response = urllib2.urlopen(req)
+            self.log_info("POSTed results to MoBeDAC for submission: " +  str(submission.id) + " got response: " + response.read())
             return True        
         except HTTPError, e:
             self.log_debug('Error sending results to MoBEDAC, error code: ' + str(e.code))
@@ -511,7 +511,7 @@ class Submission_Processor (threading.Thread):
             parts = seq_record.description.split('|')
             id = parts[0]
             remainder = "|".join(parts[1:])
-            clean_seq_file.write(">%s\t%s\t%s\n" % (id, seq_record.seq, remainder))
+            clean_seq_file.write(">%s\t%s\t%s\n" % (id, str(seq_record.seq), remainder))
             
         raw_seq_file.close()
         clean_seq_file.close()
