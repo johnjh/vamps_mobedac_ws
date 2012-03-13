@@ -402,13 +402,6 @@ class Submission_Processor (threading.Thread):
         except:
             self.log_to_submission_detail(submissiondetail, "Upload to VAMPS, Error retrieving submission project: " + submissiondetail.project_id)
             return
-
-        try:
-            sample = SampleORM.get_remote_instance(submissiondetail.sample_id, None, self.sess_obj)
-        except:
-            self.log_to_submission_detail(submissiondetail, "Upload to VAMPS, Error retrieving submission sample: " + submissiondetail.sample_id)
-            return
-        
         try:
            library = LibraryORM.get_remote_instance(submissiondetail.library_id, None, self.sess_obj)
         except:
@@ -511,7 +504,7 @@ class Submission_Processor (threading.Thread):
             parts = seq_record.description.split('|')
             id = parts[0]
             remainder = "|".join(parts[1:])
-            clean_seq_file.write(">%s\t%s\t%s\n" % (id, str(seq_record.seq), remainder))
+            clean_seq_file.write(">%s\t%s\t%s\n" % (id, str(seq_record.seq) , remainder))
             
         raw_seq_file.close()
         clean_seq_file.close()

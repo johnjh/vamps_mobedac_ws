@@ -136,8 +136,11 @@ class SubmissionORM(Base, BaseMoBEDAC):
 
             # do some sanity check/validation on the library and project information
             mobedac_logger.info("library domain: " + curr_library.get_domain())
+            mobedac_logger.info("library run_key: " + curr_library.run_key)
             mobedac_logger.info("library region: " + curr_library.get_region())
             mobedac_logger.info("project metadatastr: " + curr_project.mbd_metadata)
+            if not(curr_library.get_run_key()):
+                raise SubmissionException("The library: " + lib_id + " is missing a run key")
             if not(curr_library.get_domain()):
                 raise SubmissionException("The library: " + lib_id + " is missing a domain")
             if not(curr_library.get_region()):
