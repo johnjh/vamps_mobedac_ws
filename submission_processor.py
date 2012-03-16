@@ -25,7 +25,6 @@ import sys
 import traceback
 from initparms import get_parm
 from submission_detailsorm import SubmissionDetailsORM
-import urllib2
 import httplib
 
 
@@ -202,7 +201,8 @@ class Submission_Processor (threading.Thread):
                         "libraries"        : library_ids,
                         "analysis_links"   : [],
                         "taxonomy_table"   : json.loads(taxonomy_table_json)    
-                        }        
+                        }       
+        response = None 
         try:  
             # send it
             req = urllib2.Request(mobedac_results_url, json.dumps(results_dict), { 'Content-Type' : 'application/json' })
@@ -210,11 +210,15 @@ class Submission_Processor (threading.Thread):
             self.log_info("POSTed results to MoBeDAC for submission: " +  str(submission.id) + " got response: " + response.read())
             return True        
         except HTTPError, e:
-            self.log_debug('Error sending results to MoBEDAC, error code: ' + str(e.code))
+            self.log_exception('Error sending results to MoBEDAC, error code: ' + str(e.code))
             return False
         except URLError, e:
-            self.log_debug('We failed to reach MoBEDAC server at: ' + mobedac_results_url + ' reason: ' + str(e.reason))           
-            return False            
+            self.log_exception('We failed to reach MoBEDAC server at: ' + mobedac_results_url + ' reason: ' + str(e.reason))           
+            return False 
+        finally:
+            if response != None:
+                response.close()
+                       
         
     
     # call VAMPS to get tax table....if we fail then just return a None so we can deal with it better
@@ -225,18 +229,21 @@ class Submission_Processor (threading.Thread):
                   'user' : user,
                   'taxonomicRank' : rank}                
         data = urllib.urlencode(values)
+        response = None
         try:
             # generate the taxonomy table from VAMPS
             req = urllib2.Request(taxonomy_table_url, data)
             response = urllib2.urlopen(req)
             return response.read()        
         except HTTPError, e:
-            self.log_debug('Error generating taxonomy table code: ' + e.code)
+            self.log_exception('Error generating taxonomy table code: ' + e.code)
             return None
         except URLError, e:
-            self.log_debug('We failed to reach the VAMPS server: ' + e.reason)             
-            return None            
-        
+            self.log_exception('We failed to reach the VAMPS server: ' + e.reason)             
+            return None   
+        finally:         
+            if response != None:
+                response.close()
             
     # perform the action on the submissions in the db
     def perform_action_on_submissions(self, action):
@@ -275,7 +282,7 @@ class Submission_Processor (threading.Thread):
                     # get the submission object
                     submission = self.sess_obj.query(SubmissionORM).filter(SubmissionORM.id == submission_id).one()
                     # make sure the base processing dir is there
-                    base_dir = self.create_submission_processing_dir(submission)
+                    self.create_submission_processing_dir(submission)
                     if self.exitFlag:
                         return;
                     try:
@@ -288,13 +295,13 @@ class Submission_Processor (threading.Thread):
                     except:
                         self.log_exception("Got exception action: " + action + " processing submission id: " + str(submission.id))
         except:
-            exc_type, exc_value, exc_traceback = sys.exc_info()
-            traceback.print_exception(exc_type, exc_value, exc_traceback)
+            self.log_exception("error performing action on submission")
         finally:
             self.sess_obj.close()
             self.sess_obj = None
                 
     def gast(self, submission, submissiondetail_array):
+        response = None
         try:
             # so we can have a collection of submissions to gast
             # if there are more than 1 details in a project then we want to gast them as a group
@@ -331,16 +338,22 @@ class Submission_Processor (threading.Thread):
             self.log_exception("Some kind of error preparing to or actually calling VAMPS to GAST")
             self.log_to_submission(submission, "Some kind of error preparing to or actually calling VAMPS to GAST")
             raise
+        finally:         
+            if response != None:
+                response.close()
          
     def download(self, submission, submissiondetail_array):
         for detail in submissiondetail_array:
             # lets make a dir for the data for this object  dir:  <root>/submission.id/submission_detail.id/
             processing_dir = self.create_submission_detail_processing_dir(submission, detail)
 
-            sequence_set = detail.sequenceset_id      
+            sequence_set_id = detail.sequenceset_id      
             # now get the sequence set as object? or just a file? how?
             try:
-                self.download_sequence_file(detail, sequence_set, processing_dir)
+                # first download it
+                file_type = self.download_raw_sequence_file(detail, sequence_set_id, processing_dir)
+                # now convert it from raw format to clean fasta for VAMPS
+                self.convert_sequence_file(file_type, processing_dir)
             except:
                 self.log_to_submission_detail(detail, "Error retrieving sequence set: " + detail.sequenceset_id)
                 return        
@@ -350,45 +363,96 @@ class Submission_Processor (threading.Thread):
         self.sess_obj.commit()
 
     # call back to MoBEDAC and get the sequence file....could take a long time
-    def download_sequence_file(self, detail, sequence_set_id, processing_dir):
+    def download_raw_sequence_file(self, detail, sequence_set_id, processing_dir):
+        full_seq_file_download_url = ""
+        remote_file_handle = None
+        raw_seq_file = None
         try:
-            # dev mode?
-            if get_parm("remote_objects_are_local").lower() == 'true':
-                # this will eventually be a URL on mobedac that should get us a stream object?
-                mobedac_file_path = get_parm("test_sequence_file_path") + sequence_set_id + ".fa"
-                mobedac_file = open(mobedac_file_path, "r")
-                raw_seq_file_name = Submission_Processor.MOBEDAC_SEQUENCE_FILE_NAME
-                raw_seq_file = open(processing_dir + "/" + raw_seq_file_name, 'w')
-                buffer_size=8192
-                while 1:
-                    copy_buffer = mobedac_file.read(buffer_size)
-                    if copy_buffer:
-                        raw_seq_file.write(copy_buffer)
-                    else:
-                        break
-                mobedac_file.close()
-                raw_seq_file.close()
-            else:
-                # open the sequence set file on mobedac and try to download it
-                conn = httplib.HTTPConnection(get_parm("mobedac_host"))
-                complete_url = get_parm("mobedac_base_path") + "sequenceSet/" + sequence_set_id + "?auth=" + get_parm("mobedac_auth_key")
-                self.log_info("processor attempting to retrieve sequenceSet: " + sequence_set_id + " url path: " + complete_url)
-                conn.request("GET", complete_url)
-                mobedac_response = conn.getresponse()
-                raw_seq_file_name = Submission_Processor.MOBEDAC_SEQUENCE_FILE_NAME
-                raw_seq_file = open(processing_dir + "/" + raw_seq_file_name, 'w')
-                buffer_size=8192
-                while 1:
-                    copy_buffer = mobedac_response.read(buffer_size)
-                    if copy_buffer:
-                        raw_seq_file.write(copy_buffer)
-                    else:
-                        break
-                mobedac_response.close()
-                raw_seq_file.close()
+            # get a connection to the file
+            full_seq_file_download_url = "http://" + get_parm("mobedac_host") + get_parm("mobedac_base_path") + "sequenceSet/" + sequence_set_id + "?auth=" + get_parm("mobedac_auth_key")                
+            self.log_debug("attempting download of seq file with url: " + full_seq_file_download_url)
+            remote_file_handle = urllib2.urlopen(full_seq_file_download_url)                
+            # is it fasta or what?
+            response_headers = remote_file_handle.info().headers
+            # assume this
+            file_type = "fasta"
+            valid_file_types = ["fasta", "fastq", "sff"]
+            for h in response_headers:
+                hlower = h.lower()
+                idx = hlower.find("content-type:")
+                if idx == 0:
+                    file_type = hlower[(idx + len("content-type:")):].strip().replace("application/","")
+                    break
+            if file_type not in valid_file_types:
+                file_type = "fasta"
+            # now write out the raw file
+            raw_seq_file_name = self.get_raw_sequence_file_name(file_type, processing_dir)
+            binary_flag = "b" if file_type == "sff" else ""
+            raw_seq_file = open(raw_seq_file_name, "w" + binary_flag)
+            buffer_size=8192
+            while 1:
+                copy_buffer = remote_file_handle.read(buffer_size)
+                if copy_buffer:
+                    raw_seq_file.write(copy_buffer)
+                else:
+                    break
+            return file_type
         except:
             self.log_to_submission_detail(detail, "Error during retrieving of sequence data from MoBEDAC")
             raise
+        finally:         
+            if remote_file_handle != None:
+                remote_file_handle.close()
+            if raw_seq_file != None:
+                raw_seq_file.close()
+                
+    def get_raw_sequence_file_name(self, file_type, processing_dir):
+        return self.get_sequence_file_base_name(file_type, processing_dir) + "." + file_type
+
+    def get_sequence_file_base_name(self, file_type, processing_dir):
+        return processing_dir + "/" +  Submission_Processor.MOBEDAC_SEQUENCE_FILE_NAME_PREFIX
+
+    # convert from raw format and create clean file and possibly the quality file too
+    def convert_sequence_file(self, file_type, processing_dir):
+        raw_file_handle = None
+        clean_seq_file_handle = None
+        quality_file_handle = None
+        try:
+            # open the raw file
+            raw_seq_file_name = self.get_raw_sequence_file_name(file_type, processing_dir)
+            binary_flag = "b" if file_type == "sff" else ""
+            raw_file_handle = open(raw_seq_file_name, "r" + binary_flag)
+            # now open/create the clean file
+            clean_seq_file_name = self.get_sequence_file_base_name(file_type, processing_dir) + ".fa"
+            clean_seq_file_handle = open(clean_seq_file_name, 'w')
+            generate_quality_file = (file_type != 'fasta')
+            if generate_quality_file:
+                quality_file_handle = open(file_type + ".qual", 'w')
+            # use the sff record id rather than trying to parse it with fasta/q
+            use_seq_record_id = (file_type == 'sff') 
+            # parse and write out the clean files
+            for seq_record in SeqIO.parse(raw_file_handle, file_type):
+                if use_seq_record_id:
+                    id = seq_record.id
+                    remainder = seq_record.description
+                else:
+                    parts = seq_record.description.split('|')
+                    id = parts[0]
+                    remainder = "|".join(parts[1:])            
+                clean_seq_file_handle.write(">%s\t%s\t%s\n" % (id, str(seq_record.seq) , remainder))
+                if generate_quality_file:
+                    quality_file_handle.write(">%s\n%s\n" % (id, seq_record.letter_annotations["phred_quality"]))
+        except:
+            self.log_exception("Error converting raw sequence file to clean fasta format")
+            raise
+        finally:
+            # now close up shop
+            if raw_file_handle != None:
+                raw_file_handle.close()
+            if clean_seq_file_handle != None:
+                clean_seq_file_handle.close()
+            if quality_file_handle != None:
+                quality_file_handle.close()
         
     def vamps_upload(self, submission, submissiondetail_array):
         for detail in submissiondetail_array:
@@ -403,9 +467,10 @@ class Submission_Processor (threading.Thread):
             self.log_to_submission_detail(submissiondetail, "Upload to VAMPS, Error retrieving submission project: " + submissiondetail.project_id)
             return
         try:
-           library = LibraryORM.get_remote_instance(submissiondetail.library_id, None, self.sess_obj)
+            library = LibraryORM.get_remote_instance(submissiondetail.library_id, None, self.sess_obj)
         except:
             self.log_to_submission_detail(submissiondetail, "Upload to VAMPS, Error retrieving submission library: " + submissiondetail.library_id)
+            self.log_exception("Upload to VAMPS, Error retrieving submission library: " + submissiondetail.library_id)
             return
 
         try:            
@@ -420,16 +485,12 @@ class Submission_Processor (threading.Thread):
             self.sess_obj.commit()
         except:
             self.log_to_submission(submission, "Error during preparation and UPLOAD to VAMPS")
+            self.log_exception("Error during preparation and UPLOAD to VAMPS: ")
                 
     # need to create 4 files to upload to VAMPS
     # sequence file, run key file, primer file and params file
     def create_and_upload(self, submission, submission_detail, project, library_obj): 
         processing_dir = self.create_submission_detail_processing_dir(submission, submission_detail) + "/"
-
-        # now create the cleaned seq file
-        # create the cleaned sequence file also
-        clean_sequence_file_name = processing_dir + Submission_Processor.MOBEDAC_SEQUENCE_FILE_NAME_PREFIX + "_clean.fa"
-        self.convert_raw_to_clean_seq(str(submission_detail.id), processing_dir + Submission_Processor.MOBEDAC_SEQUENCE_FILE_NAME, Submission_Processor.MOBEDAC_SEQUENCE_FILE_NAME_PREFIX, clean_sequence_file_name)
 
         # now create the primer file
         # first get the owning Library
@@ -449,7 +510,7 @@ class Submission_Processor (threading.Thread):
         self.create_params_file(param_file_name, submission.user, run_key, project.description[0:255], "Dataset description test", project.name)
         
         # now send the files on up
-        vamps_status_record_id = self.post_sequence_data(submission_detail, clean_sequence_file_name, primer_file_name, run_key_file_name, param_file_name)
+        vamps_status_record_id = self.post_sequence_data(submission_detail, processing_dir + Submission_Processor.MOBEDAC_SEQUENCE_FILE_NAME_PREFIX, primer_file_name, run_key_file_name, param_file_name)
         return vamps_status_record_id
     
     def create_params_file(self, param_file_name, vamps_user, run_key, project_description, dataset_description, project_title):
@@ -465,19 +526,29 @@ class Submission_Processor (threading.Thread):
         params_file.close()
 
         
-    def post_sequence_data(self, submission_detail, clean_sequence_file_name, primer_file_name, run_key_file_name, param_file_name):
+    def post_sequence_data(self, submission_detail, sequence_file_name_prefix, primer_file_name, run_key_file_name, param_file_name):
+        response = None
         try:
             # headers contains the necessary Content-Type and Content-Length
             # datagen is a generator object that yields the encoded parameters
             # VAMPS expects 4 or 5 files in this multipart form upload they have the parameter names shown below
-            datagen, headers = encode.multipart_encode({
-                                                 'seqfile' : open(clean_sequence_file_name,"r"),
-                                                 'primfile' : open(primer_file_name,"r"),
-                                                 'keyfile' :open(run_key_file_name,"r"),
-                                                 'paramfile' : open(param_file_name,"r")
-                                                 })
+            post_params = {
+                         'seqfile' : open(sequence_file_name_prefix + ".fa","r"),
+                         'primfile' : open(primer_file_name,"r"),
+                         'keyfile' :open(run_key_file_name,"r"),
+                         'paramfile' : open(param_file_name,"r")
+                         }
+            # where to send it?
+            vamps_upload_url = get_parm('vamps_data_post_url')
+            # do we also send a qual file? if one was generated they we should do it
+            possible_qual_file_name = sequence_file_name_prefix + ".qual"
+            if os.path.exists(possible_qual_file_name):
+                vamps_upload_url = get_parm('vamps_data_post_url_with_qual_file')
+                post_params['qualfile'] = open(possible_qual_file_name,"r")
+            
+            datagen, headers = encode.multipart_encode(post_params)
             # Create the Request object
-            request = urllib2.Request(self.vamps_upload_url, datagen, headers)
+            request = urllib2.Request(vamps_upload_url, datagen, headers)
             # Actually do the request, and get the response
             response = urllib2.urlopen(request)
             if response.code != 200:
@@ -489,7 +560,10 @@ class Submission_Processor (threading.Thread):
             self.log_exception("Error connecting with VAMPS processor to upload submission_detail: " + str(submission_detail.id))
             raise
         finally:
+            if response != None:
+                response.close()
             pass
+
     
     def write_run_key_file(self, run_key_file_name, key_hash):
         key_file = open(run_key_file_name, 'w')
@@ -497,17 +571,6 @@ class Submission_Processor (threading.Thread):
         key_file.write(key_line)
         key_file.close()
         
-    def convert_raw_to_clean_seq(self, unique_key, raw_seq_file_name, raw_seq_file_name_prefix, clean_seq_file_name):
-        raw_seq_file = open(raw_seq_file_name, 'r')
-        clean_seq_file = open(clean_seq_file_name, 'w')
-        for seq_record in SeqIO.parse(raw_seq_file, "fasta"):
-            parts = seq_record.description.split('|')
-            id = parts[0]
-            remainder = "|".join(parts[1:])
-            clean_seq_file.write(">%s\t%s\t%s\n" % (id, str(seq_record.seq) , remainder))
-            
-        raw_seq_file.close()
-        clean_seq_file.close()
         
     def create_primer_file(self, primer_array, primer_file_name):
         primer_file = open(primer_file_name, 'w')
