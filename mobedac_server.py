@@ -16,6 +16,8 @@ from submission_processor import Submission_Processor
 from dbconn import Session, vampsSession
 import sys
 import traceback
+from threading import Thread
+import time
 
 
 class Root(object):
@@ -52,17 +54,17 @@ class Root(object):
     def stop_the_server(self):
         try:
             mobedac_logger.debug("Telling submission processing thread to shutdown...")
-            submission_processor_thread.stop_processing()
+            self.submission_processor_thread.stop_processing()
             # wait here for the processor to stop
-            submission_processor_thread.join(20.0)
+            self.submission_processor_thread.join(20.0)
             # did it stop? do we need to to whack it?
-            if submission_processor_thread.is_alive():
-                submission_processor_thread.stop_processing()
+            if self.submission_processor_thread.is_alive():
+                self.submission_processor_thread.stop_processing()
         except:
             mobedac_logger.exception("Got error trying to stop submission processor thread")
         cherrypy.engine.exit()
 
-if __name__ == '__main__':
+def web_service_listener(*args):
     import argparse
     the_root = None
     try:
@@ -83,12 +85,20 @@ if __name__ == '__main__':
         the_root = Root(submission_processor_thread)
         cherrypy.quickstart(the_root, logicalpath)
         the_root.stop_the_server()
+        time.sleep(5)
 
     except:
         print "Error on startup"
         exc_type, exc_value, exc_traceback = sys.exc_info()
         traceback.print_exception(exc_type, exc_value, exc_traceback)
         sys.exit()
+    pass
+
+if __name__ == '__main__':
+    make_thread = lambda fn, *args: Thread(None, fn, None, args).start()  
+    make_thread(web_service_listener)
+
+
 
 
 
