@@ -149,7 +149,6 @@ class Submission_Processor (threading.Thread):
                     self.log_debug("There is a submission detail object associated with submission object: " + str(key) + " that does not have a next_action of: post_results_to_mobedac")
                     continue  # found a submission detail object attached to this submission object that does not have the expected 'action' status...so skip this submission object
                 completed_detail_hashs_by_submission_id[key] = value
-                self.log_debug("All the submission details of submission: " + str(key) + " have the correct state of 'post_results_to_mobedac' so will process it now...get tax table and return it to mobedac")
                 # now do the work on each of these sets of details....send the data back to mobedac
                 # loop through all the details in here and produce a list of datasets, and project counts
                 sampleOrderNames = []
@@ -161,7 +160,7 @@ class Submission_Processor (threading.Thread):
                     if status_row == None:
                         raise "Error locating vamps_upload_status record found for submission_detail: " + detail.id + " vamps_status_id: " + str(detail.vamps_status_record_id)
                     if status_row[0] != self.VAMPS_GAST_COMPLETE:
-                        self.log_debug("Can't return results to MoBEDAC submissiondetail: " + str(detail.id) + " yet, VAMPS status is still: " + status_row[0])
+                        self.log_debug("Can't return results to MoBEDAC submissiondetail: " + str(detail.id) + " yet, VAMPS status row: " + str(detail.vamps_status_record_id) + " is still: " + status_row[0])
                         some_detail_has_incomplete_gasting = True
                         break
                     # keep track of unique project names by using a dictionary
