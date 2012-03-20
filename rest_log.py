@@ -22,7 +22,8 @@ backupCount = getattr(log, "rot_backupCount", 10)
 # Make a new RotatingFileHandler for the error log. 
 fname = getattr(log, "rot_error_file", get_parm("error_log_path")) 
 h = RotatingFileHandler(fname, 'a', maxBytes, backupCount) 
-h.setFormatter(logging.Formatter("%(asctime)s - [thread: %(thread)s %(threadName)s] - %(name)s - %(levelname)s - %(message)s")) 
+h.doRollover()
+h.setFormatter(logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")) 
 log.error_log.addHandler(h) 
 
 # Make a new RotatingFileHandler for the access log. 
