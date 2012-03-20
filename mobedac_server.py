@@ -16,8 +16,6 @@ from submission_processor import Submission_Processor
 from dbconn import Session, vampsSession
 import sys
 import traceback
-from threading import Thread
-import time
 
 
 class Root(object):
@@ -64,7 +62,7 @@ class Root(object):
             mobedac_logger.exception("Got error trying to stop submission processor thread")
         cherrypy.engine.exit()
 
-def web_service_listener(*args):
+if __name__ == '__main__':
     import argparse
     the_root = None
     try:
@@ -85,20 +83,12 @@ def web_service_listener(*args):
         the_root = Root(submission_processor_thread)
         cherrypy.quickstart(the_root, logicalpath)
         the_root.stop_the_server()
-        time.sleep(5)
 
     except:
         print "Error on startup"
         exc_type, exc_value, exc_traceback = sys.exc_info()
         traceback.print_exception(exc_type, exc_value, exc_traceback)
         sys.exit()
-    pass
-
-if __name__ == '__main__':
-    make_thread = lambda fn, *args: Thread(None, fn, None, args).start()  
-    make_thread(web_service_listener)
-
-
 
 
 
