@@ -235,10 +235,10 @@ class Submission_Processor (threading.Thread):
             response = urllib2.urlopen(req)
             return response.read()        
         except HTTPError, e:
-            self.log_exception('Error generating taxonomy table code: ' + e.code)
+            self.log_exception('Error generating taxonomy table code: ' + str(e.code))
             return None
         except URLError, e:
-            self.log_exception('We failed to reach the VAMPS server: ' + e.reason)             
+            self.log_exception('We failed to reach the VAMPS server: ' + str(e.reason))             
             return None   
         finally:         
             if response != None:
@@ -333,6 +333,7 @@ class Submission_Processor (threading.Thread):
             for detail in submissiondetail_array:                          
                 detail.next_action = SubmissionDetailsORM.ACTION_POST_RESULTS_TO_MOBEDAC
             self.sess_obj.commit()
+            self.log_debug("Posted GAST for submissiondetail: " + str(detail.id) + " project: " + detail.vamps_project_name + " vamps status id: " + str(detail.vamps_status_record_id))
         except:
             self.log_exception("Some kind of error preparing to or actually calling VAMPS to GAST")
             self.log_to_submission(submission, "Some kind of error preparing to or actually calling VAMPS to GAST")
@@ -395,6 +396,7 @@ class Submission_Processor (threading.Thread):
                     raw_seq_file.write(copy_buffer)
                 else:
                     break
+            self.log_debug("successfully downloaded seq file with url: " + full_seq_file_download_url)
             return file_type
         except:
             self.log_to_submission_detail(detail, "Error during retrieving of sequence data from MoBEDAC")
@@ -429,6 +431,8 @@ class Submission_Processor (threading.Thread):
                 quality_file_handle = open(file_type + ".qual", 'w')
             # use the sff record id rather than trying to parse it with fasta/q
             use_seq_record_id = (file_type == 'sff') 
+            self.log_debug("attempting to convert sequence file: " + raw_seq_file_name)
+            self.log_debug("attempting to convert type: " + file_type)
             # parse and write out the clean files
             for seq_record in SeqIO.parse(raw_file_handle, file_type):
                 if use_seq_record_id:
@@ -441,6 +445,7 @@ class Submission_Processor (threading.Thread):
                 clean_seq_file_handle.write(">%s\t%s\t%s\n" % (id, str(seq_record.seq) , remainder))
                 if generate_quality_file:
                     quality_file_handle.write(">%s\n%s\n" % (id, seq_record.letter_annotations["phred_quality"]))
+            self.log_debug("successfully converted sequence file: " + raw_seq_file_name)
         except:
             self.log_exception("Error converting raw sequence file to clean fasta format")
             raise
@@ -553,7 +558,7 @@ class Submission_Processor (threading.Thread):
             if response.code != 200:
                 raise "Error uploading sequence files to VAMPS: " + response.msg
             response_str = response.read()
-            self.log_debug("Uploaded to VAMPS submission_detail: " + str(submission_detail.id) + " got response id: " + response_str)
+            self.log_debug("Successfully uploaded to VAMPS submission_detail: " + str(submission_detail.id) + " got response id: " + response_str)
             return response_str
         except:
             self.log_exception("Error connecting with VAMPS processor to upload submission_detail: " + str(submission_detail.id))
