@@ -153,7 +153,8 @@ class Submission_Processor (threading.Thread):
                 # loop through all the details in here and produce a list of datasets, and project counts
                 sampleOrderNames = []
                 library_ids = []
-                unique_project_names = {}
+                unique_project_name_dict = {}
+                details_by_library_id = {}
                 some_detail_has_incomplete_gasting = False
                 for detail in value:
                     status_row = detail.get_VAMPS_submission_status_row(self.sess_obj)
@@ -164,24 +165,26 @@ class Submission_Processor (threading.Thread):
                         some_detail_has_incomplete_gasting = True
                         break
                     # keep track of unique project names by using a dictionary
-                    unique_project_names[detail.vamps_project_name] = detail.vamps_project_name
+                    unique_project_name_dict[detail.vamps_project_name] = detail.vamps_project_name
                     # keep a list of project-dataset names
                     sampleOrderNames.append(detail.vamps_project_name + "--" + detail.vamps_dataset_name)
                     # and library ids
                     library_ids.append(detail.library_id)
+                    # remember these for sending back to mobedac
+                    details_by_library_id[detail.library_id] = detail
                     
                 if some_detail_has_incomplete_gasting:
                     continue # don't return results for this submission since there is still some processing going on
                 
                 # now we have all the sampleOrder names set up and a hash of the unique project names (we just want a count of those)
-                project_count = len(unique_project_names)
+                project_count = len(unique_project_name_dict)
                 # find out the user
                 submission = SubmissionORM.get_instance(key, self.sess_obj)
                 taxonomy_table_json = self.get_taxonomy_table(project_count, sampleOrderNames, submission.user, 'family')
                 if taxonomy_table_json == None:
                     continue
                 # send the tax table to mobedac
-                success = self.send_to_mobedac(submission, library_ids, taxonomy_table_json)
+                success = self.send_to_mobedac(submission, library_ids, details_by_library_id, taxonomy_table_json)
                 # if all went well then mark all the details as complete
                 if(success):
                     for detail in value:
@@ -190,15 +193,22 @@ class Submission_Processor (threading.Thread):
         except:
             self.log_exception("Got exception during taxonomy generation and mobedac sending")
         
+    def get_analysis_links(self, user, details_by_library_id):
+        links = {}
+        for library, detail in details_by_library_id.items():
+            links[library] = {"Visualization" : get_parm('vamps_landing_page_str') % (detail.vamps_project_name, user) }
+        return links
+    
     # post the analysis results back to MoBEDAC
     # don't have the analysis links yet. 
-    def send_to_mobedac(self, submission, library_ids, taxonomy_table_json):
+    def send_to_mobedac(self, submission, library_ids, details_by_library_id, taxonomy_table_json):
+        analysis_links = self.get_analysis_links(submission.user, details_by_library_id)
         mobedac_results_url = get_parm('mobedac_results_url')
         results_dict = {
                         "auth" : get_parm("mobedac_auth_key"),
                         "analysis_system" : "VAMPS",
                         "libraries"        : library_ids,
-                        "analysis_links"   : [],
+                        "analysis_links"   : analysis_links,
                         "taxonomy_table"   : json.loads(taxonomy_table_json)    
                         }       
         response = None 
@@ -218,8 +228,6 @@ class Submission_Processor (threading.Thread):
             if response != None:
                 response.close()
                        
-        
-    
     # call VAMPS to get tax table....if we fail then just return a None so we can deal with it better
     def get_taxonomy_table(self, project_count, projectDatasetNames, user, rank):
         taxonomy_table_url = get_parm('vamps_taxonomy_table_url')
