@@ -167,8 +167,7 @@ class SubmissionORM(Base, BaseMoBEDAC):
             curr_library_domain = curr_library.get_domain()
             curr_library_region = curr_library.get_region()
             domain_region_suffix = '_' + curr_library_domain[0].upper() + curr_library_region.lower()
-#            vamps_project_name = curr_project.get_metadata_json()['project_code'] + domain_region_suffix
-            vamps_project_name = "ICM_MBD" 
+            vamps_project_name = curr_project.get_metadata_json()['project_code'] + domain_region_suffix
             mobedac_logger.info("preparing the submission detail object");
             # now create the submission details objects
             new_details = SubmissionDetailsORM(None)
