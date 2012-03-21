@@ -81,7 +81,9 @@ if __name__ == '__main__':
         submission_processor_thread.start()
         cherrypy.config.update({'server.socket_port': int(port),})
         the_root = Root(submission_processor_thread)
-        cherrypy.quickstart(the_root, logicalpath)
+        cherrypy.tree.mount(the_root, logicalpath)
+        cherrypy.engine.start()
+        cherrypy.engine.block()
         the_root.stop_the_server()
 
     except:
