@@ -30,8 +30,14 @@ class Root(object):
         self.submission_processor_thread = submission_processor_thread
 
     @cherrypy.expose
+    def default(self, *args):
+        cherrypy.response.status = 404
+        mobedac_logger.debug("Likely got a bad URL with tuple path:  /" + "/".join(list(args)))
+        return "Unknown resource /" + "/".join(list(args))
+
+    @cherrypy.expose
     def index(self):
-        return "JBPC VAMPS-MoBEDAC REST Service"
+        return "MBL-JBPC VAMPS-MoBEDAC REST Service"
 
     @cherrypy.expose
     def log_level_debug(self):

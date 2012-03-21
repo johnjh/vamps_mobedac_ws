@@ -12,6 +12,9 @@ class RESTResource(object):
     
     def __init__(self, ormcls):
         self.orm_class = ormcls
+
+    def log_exception(self, msg):
+        mobedac_logger.exception(msg)
         
     @cherrypy.expose
     def default(self, *vpath, **params):
@@ -24,6 +27,9 @@ class RESTResource(object):
                 cherrypy.response.headers["Allow"] = ",".join(methods)
                 raise cherrypy.HTTPError(405, "Method not implemented.")
             return method(current_session, *vpath, **params)
+        except:
+            self.log_exception("restresource.default() exception")
+            return "There was an error attempting to service the request"
         finally:
             current_session.close()
 
@@ -46,10 +52,9 @@ class RESTResource(object):
                 result = "{%s}" % one.to_json(current_session)
                 return result
         except Exception as e:
-            exc_type, exc_value, exc_traceback = sys.exc_info()
-            traceback.print_exception(exc_type, exc_value, exc_traceback)
+            self.log_exception("There was an error attempting to service the GET request")
             cherrypy.response.status = 500
-            return "There was an error attempting to service the request: " + str(e)
+            return "There was an error attempting to service the GET request"
         
     def handle_POST(self, current_session, *vpath, **params):
         """ Create of an object
@@ -70,11 +75,10 @@ class RESTResource(object):
                 current_session.commit()
                 return new_obj.id
         except Exception as e:
-            exc_type, exc_value, exc_traceback = sys.exc_info()
-            traceback.print_exception(exc_type, exc_value, exc_traceback)
+            self.log_exception("There was an error attempting to service the POST request")
             current_session.rollback()
             cherrypy.response.status = 500
-            return "There was an error on submission: " + e.value
+            return "There was an error attempting to service the request"
         
     def handle_PUT(self, current_session, *vpath, **params):
         """ Update of an existing object
@@ -89,11 +93,10 @@ class RESTResource(object):
             current_session.commit()
             return "done Update of object: " + vpath[0]
         except:
-            exc_type, exc_value, exc_traceback = sys.exc_info()
-            traceback.print_exception(exc_type, exc_value, exc_traceback)
+            self.log_exception("There was an error attempting to service the PUT request")
             cherrypy.response.status = 500
             current_session.rollback()
-            return "An error occured processing your request: " + exc_value
+            return "There was an error attempting to service the request"
 
     def handle_HEAD(self, current_session, *vpath, **params):
         try:
@@ -108,8 +111,7 @@ class RESTResource(object):
             result_txt = '"result" : %s' % (result)
             return result_txt
         except:
-            exc_type, exc_value, exc_traceback = sys.exc_info()
-            traceback.print_exception(exc_type, exc_value, exc_traceback)
+            self.log_exception("There was an error attempting to service the HEAD request")
             cherrypy.response.status = 500
             return "There was an error attempting to service the request"
         

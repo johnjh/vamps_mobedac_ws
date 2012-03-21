@@ -47,13 +47,13 @@ class Submission_Processor (threading.Thread):
         threading.Thread.__init__(self)
      
     def log_debug(self, msg):
-        mobedac_logger.debug("submission processor: " + msg)
+        mobedac_logger.debug(msg)
         
     def log_info(self, msg):
-        mobedac_logger.info("submission processor: " + msg)
+        mobedac_logger.info(msg)
 
     def log_exception(self, msg):
-        mobedac_logger.exception("submission processor: " + msg)
+        mobedac_logger.exception(msg)
         
     def stop_processing(self):   
         self.exitFlag = True
@@ -106,7 +106,7 @@ class Submission_Processor (threading.Thread):
             # sleep 30 seconds...this should be parameterized
             time.sleep(30)
             if self.halt_processing == False:
-                self.log_debug("top of processing loop woke up from sleep...processing=TRUE")
+                self.log_debug("processing wakeup...")
                 if self.exitFlag:
                     return;
                 self.perform_action_on_submissions(SubmissionDetailsORM.ACTION_DOWNLOAD)
