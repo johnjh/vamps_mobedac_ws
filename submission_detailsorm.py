@@ -139,6 +139,9 @@ class SubmissionDetailsORM(Base, BaseMoBEDAC):
                 elif status == 'GAST_ERROR':
                     msg = "There was an error during GAST processing"
                     code = self.ERROR_STATUS
+                else:
+                    msg = "The VAMPS system is performing GAST processing."   
+                    code = self.PROCESSING_STATUS
             elif self.next_action == self.ACTION_PROCESSING_COMPLETE:
                 msg = "Processing is complete and data has been returned to MoBEDAC."
                 code = self.COMPLETE_SUCCESS_STATUS

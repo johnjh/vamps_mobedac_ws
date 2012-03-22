@@ -26,6 +26,7 @@ import traceback
 from initparms import get_parm
 from submission_detailsorm import SubmissionDetailsORM
 import httplib
+from shutil import rmtree
 
 
 class Submission_Processor (threading.Thread):
@@ -46,6 +47,12 @@ class Submission_Processor (threading.Thread):
         
         threading.Thread.__init__(self)
      
+    def accumulate_by_key(self, hash, key, obj):
+        temp_array = hash.get(key, None)
+        if temp_array == None:
+            hash[key] = temp_array = []
+        temp_array.append(obj)        
+        
     def log_debug(self, msg):
         mobedac_logger.debug(msg)
         
@@ -86,8 +93,11 @@ class Submission_Processor (threading.Thread):
             detail.next_action = next_action
         self.sess_obj.commit()
         
+    def get_submission_processing_dir(self, submission):
+        return self.root_dir + "/" + str(submission.id)
+
     def create_submission_processing_dir(self, submission):
-        processing_dir = self.root_dir + "/" + str(submission.id)
+        processing_dir = self.get_submission_processing_dir(submission)
         if os.path.exists(processing_dir) == False:
             os.mkdir(processing_dir)
         return processing_dir
@@ -132,10 +142,7 @@ class Submission_Processor (threading.Thread):
                 
             # get all submission detail objects that have a status of 'post_results_to_mobedac'
             for detail in self.sess_obj.query(SubmissionDetailsORM).filter(SubmissionDetailsORM.next_action == SubmissionDetailsORM.ACTION_POST_RESULTS_TO_MOBEDAC).all():
-                detailed_array_by_submission_id = details_hashed_by_submission_id.get(detail.submission_id, None)
-                if detailed_array_by_submission_id == None:
-                    details_hashed_by_submission_id[detail.submission_id] = []
-                details_hashed_by_submission_id[detail.submission_id].append(detail)
+                self.accumulate_by_key(details_hashed_by_submission_id, detail.submission_id, detail)
                 
             # now loop over all the arrays of detail objects
             completed_detail_hashs_by_submission_id = {}
@@ -149,6 +156,7 @@ class Submission_Processor (threading.Thread):
                     self.log_debug("There is a submission detail object associated with submission object: " + str(key) + " that does not have a next_action of: post_results_to_mobedac")
                     continue  # found a submission detail object attached to this submission object that does not have the expected 'action' status...so skip this submission object
                 completed_detail_hashs_by_submission_id[key] = value
+                
                 # now do the work on each of these sets of details....send the data back to mobedac
                 # loop through all the details in here and produce a list of datasets, and project counts
                 sampleOrderNames = []
@@ -182,6 +190,7 @@ class Submission_Processor (threading.Thread):
                 submission = SubmissionORM.get_instance(key, self.sess_obj)
                 taxonomy_table_json = self.get_taxonomy_table(project_count, sampleOrderNames, submission.user, 'family')
                 if taxonomy_table_json == None:
+                    self.log_debug("Didn't get any taxonomy returned from VAMPS for sampleOrderNames: " + str(sampleOrderNames))
                     continue
                 # send the tax table to mobedac
                 success = self.send_to_mobedac(submission, library_ids, details_by_library_id, taxonomy_table_json)
@@ -190,6 +199,10 @@ class Submission_Processor (threading.Thread):
                     for detail in value:
                         detail.next_action = SubmissionDetailsORM.ACTION_PROCESSING_COMPLETE
                     self.sess_obj.commit()
+                    # now we can delete the processing directory!!
+                    processing_dir = self.get_submission_processing_dir(submission)
+                    rmtree(processing_dir)
+                    
         except:
             self.log_exception("Got exception during taxonomy generation and mobedac sending")
         
@@ -261,46 +274,26 @@ class Submission_Processor (threading.Thread):
                 
             # get all pending submission detail objects and put them in a hash where each key is the submission id
             # and each value is an array of detail objects
+            details_hashed_by_submission_id = {}
             for detail in self.sess_obj.query(SubmissionDetailsORM).filter(SubmissionDetailsORM.next_action == action).all():
-                detailed_array_by_submission_id = details_hashed_by_submission_id.get(detail.submission_id, None)
-                if detailed_array_by_submission_id == None:
-                    details_hashed_by_submission_id[detail.submission_id] = []
-                details_hashed_by_submission_id[detail.submission_id].append(detail)
+                self.accumulate_by_key(details_hashed_by_submission_id, detail.submission_id, detail)
                 
-            # now loop over all the arrays of detail objects
-            final_detail_hashs_by_submission_id = {}
-            for key, value in  details_hashed_by_submission_id.items():
-                # value is now an array of detail objects all tied to its parent submission object id
-                # we want to now group these by project name
-                hashed_detail_objects = {}
-                for detail in value:
-                    details_by_project_name = hashed_detail_objects.get(detail.vamps_project_name, None)
-                    if details_by_project_name == None:
-                        hashed_detail_objects[detail.vamps_project_name] = []
-                    hashed_detail_objects[detail.vamps_project_name].append(detail)
-                final_detail_hashs_by_submission_id[key] = hashed_detail_objects
-                
-            # now we have a hash with key=submission id and the value is now a hash which is keyed by project name and the value is all details with that project name
-            for submission_id, details_hash_by_project_name in final_detail_hashs_by_submission_id.items():
-                # now get the items from the sub hash
-                details_hash = details_hash_by_project_name
-                for detail_array in details_hash.itervalues():
-                    print "Working on submission details objects: " + str(detail_array)
-                    # get the submission object
-                    submission = self.sess_obj.query(SubmissionORM).filter(SubmissionORM.id == submission_id).one()
-                    # make sure the base processing dir is there
-                    self.create_submission_processing_dir(submission)
-                    if self.exitFlag:
-                        return;
-                    try:
-                        # assume all is well with these submission detail object(s)
-                        self.clear_submission_msg_text(detail_array)
-                        # find the action
-                        action_method = getattr(self, action)
-                        # do the action
-                        action_method(submission, detail_array)
-                    except:
-                        self.log_exception("Got exception action: " + action + " processing submission id: " + str(submission.id))
+            for submission_id, detail_array in details_hashed_by_submission_id.items():
+                # get the submission object
+                submission = self.sess_obj.query(SubmissionORM).filter(SubmissionORM.id == submission_id).one()
+                # make sure the base processing dir is there
+                self.create_submission_processing_dir(submission)
+                if self.exitFlag:
+                    return;
+                try:
+                    # assume all is well with these submission detail object(s)
+                    self.clear_submission_msg_text(detail_array)
+                    # find the action
+                    action_method = getattr(self, action)
+                    # do the action
+                    action_method(submission, detail_array)
+                except:
+                    self.log_exception("Got exception action: " + action + " processing submission id: " + str(submission.id))
         except:
             self.log_exception("error performing action on submission")
         finally:
@@ -313,6 +306,7 @@ class Submission_Processor (threading.Thread):
             # so we can have a collection of submissions to gast
             # if there are more than 1 details in a project then we want to gast them as a group
             # and so they all have to be at the state of TRIM_SUCCESS else we can't gast yet
+            details_by_project_name = {}
             for detail in submissiondetail_array:                          
                 status_row = detail.get_VAMPS_submission_status_row(self.sess_obj)
                 if status_row == None:
@@ -320,27 +314,31 @@ class Submission_Processor (threading.Thread):
                 if status_row[0] != self.VAMPS_TRIM_SUCCESS:
                     self.log_debug("Can't GAST submissiondetail: " + str(detail.id) + " yet, VAMPS status is: " + status_row[0])
                     return
+                #gather them by project name
+                self.accumulate_by_key(details_by_project_name, detail.vamps_project_name, detail)
+            
             # if we land here then all submission detail objects in this project were uploaded and trimmed successfully and are waiting to be GASTed
-            
-            # can use just a single detail object because we GAST all the datasets in the project
-            detail =  submissiondetail_array[0]
-            values = {'project' : detail.vamps_project_name,
-                      'new_source' : detail.region, 
-                      'gast_ok' : '1',
-                      'run_number' : detail.vamps_status_record_id
-                      }
-            
-            data = urllib.urlencode(values)
-            # Create the Request object
-            request = urllib2.Request(self.vamps_gast_url, data)
-            # Actually do the request, and get the response
-            response = urllib2.urlopen(request)
-            if response.code != 200:
-                raise "Error starting GAST processing in VAMPS: " + response.msg
-            # must have submitted ok so mark them all
-            for detail in submissiondetail_array:                          
-                detail.next_action = SubmissionDetailsORM.ACTION_POST_RESULTS_TO_MOBEDAC
-            self.sess_obj.commit()
+            # need to GAST them by project
+            for project_name, details in details_by_project_name.items():
+                # can use just a single detail object because we GAST all the datasets in the project
+                detail =  details[0]
+                values = {'project' : project_name,
+                          'new_source' : detail.region, 
+                          'gast_ok' : '1',
+                          'run_numbers' : str([d.vamps_status_record_id for d in details])  # this is a hack for testing purposes
+                          }
+                
+                data = urllib.urlencode(values)
+                # Create the Request object
+                request = urllib2.Request(self.vamps_gast_url, data)
+                # Actually do the request, and get the response
+                response = urllib2.urlopen(request)
+                if response.code != 200:
+                    raise "Error starting GAST processing in VAMPS: " + response.msg
+                # must have submitted ok so mark them all
+                for detail in submissiondetail_array:                          
+                    detail.next_action = SubmissionDetailsORM.ACTION_POST_RESULTS_TO_MOBEDAC
+                self.sess_obj.commit()
             self.log_debug("Posted GAST for submissiondetail: " + str(detail.id) + " project: " + detail.vamps_project_name + " vamps status id: " + str(detail.vamps_status_record_id))
         except:
             self.log_exception("Some kind of error preparing to or actually calling VAMPS to GAST")
