@@ -32,6 +32,7 @@ from shutil import rmtree
 class Submission_Processor (threading.Thread):
     MOBEDAC_SEQUENCE_FILE_NAME = "mobedac_sequences.seq"
     MOBEDAC_SEQUENCE_FILE_NAME_PREFIX = "mobedac_sequences"
+    MOBEDAC_RESULTS_FILE_NAME = "vamps_results.json"
     
     # some VAMPS processing code
     VAMPS_TRIM_SUCCESS = "TRIM_SUCCESS"
@@ -94,7 +95,10 @@ class Submission_Processor (threading.Thread):
         self.sess_obj.commit()
         
     def get_submission_processing_dir(self, submission):
-        return self.root_dir + "/" + str(submission.id)
+        return os.path.join(self.root_dir,str(submission.id))
+
+    def get_submission_detail_processing_dir(self, submission, submissiondetail):
+        return os.path.join(self.get_submission_processing_dir(submission), str(submissiondetail.id))
 
     def create_submission_processing_dir(self, submission):
         processing_dir = self.get_submission_processing_dir(submission)
@@ -103,7 +107,8 @@ class Submission_Processor (threading.Thread):
         return processing_dir
 
     def create_submission_detail_processing_dir(self, submission, submissiondetail):
-        processing_dir = self.create_submission_processing_dir(submission) + "/" + str(submissiondetail.id) 
+        self.create_submission_processing_dir(submission) 
+        processing_dir = self.get_submission_detail_processing_dir(submission, submissiondetail)
         if os.path.exists(processing_dir) == False:
             os.mkdir(processing_dir)
         return processing_dir
@@ -199,9 +204,11 @@ class Submission_Processor (threading.Thread):
                     for detail in value:
                         detail.next_action = SubmissionDetailsORM.ACTION_PROCESSING_COMPLETE
                     self.sess_obj.commit()
-                    # now we can delete the processing directory!!
+                    # now we can delete the processing details directories but save the upper one
+                    # because it has the results that were returned
                     processing_dir = self.get_submission_processing_dir(submission)
-                    rmtree(processing_dir)
+                    for detail in value:
+                        rmtree(self.get_submission_detail_processing_dir(submission, detail))
                     
         except:
             self.log_exception("Got exception during taxonomy generation and mobedac sending")
@@ -227,7 +234,10 @@ class Submission_Processor (threading.Thread):
         response = None 
         try:  
             # send it
-            req = urllib2.Request(mobedac_results_url, json.dumps(results_dict), { 'Content-Type' : 'application/json' })
+            json_str = json.dumps(results_dict)
+            # let's try to log this json into the processing dir
+            open(os.path.join(self.get_submission_processing_dir(submission),self.MOBEDAC_RESULTS_FILE_NAME), "w").write(json_str)
+            req = urllib2.Request(mobedac_results_url, json_str, { 'Content-Type' : 'application/json' })
             response = urllib2.urlopen(req)
             self.log_info("POSTed results to MoBeDAC for submission: " +  str(submission.id) + " got response: " + response.read())
             return True        
@@ -417,7 +427,7 @@ class Submission_Processor (threading.Thread):
         return self.get_sequence_file_base_name(file_type, processing_dir) + "." + file_type
 
     def get_sequence_file_base_name(self, file_type, processing_dir):
-        return processing_dir + "/" +  Submission_Processor.MOBEDAC_SEQUENCE_FILE_NAME_PREFIX
+        return os.path.join(processing_dir, Submission_Processor.MOBEDAC_SEQUENCE_FILE_NAME_PREFIX)
 
     # convert from raw format and create clean file and possibly the quality file too
     def convert_sequence_file(self, file_type, processing_dir):
@@ -500,7 +510,7 @@ class Submission_Processor (threading.Thread):
     # need to create 4 files to upload to VAMPS
     # sequence file, run key file, primer file and params file
     def create_and_upload(self, submission, submission_detail, project, library_obj): 
-        processing_dir = self.create_submission_detail_processing_dir(submission, submission_detail) + "/"
+        processing_dir = os.path.join(self.create_submission_detail_processing_dir(submission, submission_detail),"")
 
         # now create the primer file
         # first get the owning Library
