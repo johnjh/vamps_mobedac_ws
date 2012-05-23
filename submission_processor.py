@@ -3,31 +3,25 @@ import cherrypy
 import threading
 import time
 from submissionorm import SubmissionORM
-from sequencesetorm import SequenceSetORM
 from projectorm import ProjectORM
-from sampleorm import SampleORM
 from libraryorm import LibraryORM
+from sampleorm import SampleORM
 import json as json
 from Bio import SeqIO
 import os
-import datetime
 from string import Template
 from rest_log import mobedac_logger
-import shutil
 from poster import streaminghttp 
 from poster import encode
 import urllib2, urllib
 from urllib2 import URLError, HTTPError
 from sqlalchemy import *
 from sqlalchemy import  and_
-from dbconn import Session,vampsSession
-import sys
-import traceback
+from dbconn import Session, test_engine
 from initparms import get_parm
 from submission_detailsorm import SubmissionDetailsORM
-import httplib
 from shutil import rmtree
-
+from metadata_maps import samplemetadatamap, sequencemetadatamap
 
 class Submission_Processor (threading.Thread):
     MOBEDAC_SEQUENCE_FILE_NAME = "mobedac_sequences.seq"
@@ -37,7 +31,7 @@ class Submission_Processor (threading.Thread):
     # some VAMPS processing code
     VAMPS_TRIM_SUCCESS = "TRIM_SUCCESS"
     VAMPS_GAST_COMPLETE = "GAST_SUCCESS"
-    
+
     def __init__(self, sleep_seconds, vamps_upload_url, vamps_gast_url, processing_dir):
         self.sleep_seconds = sleep_seconds
         self.exitFlag = False
@@ -45,9 +39,20 @@ class Submission_Processor (threading.Thread):
         self.vamps_gast_url = vamps_gast_url
         self.root_dir = processing_dir
         self.halt_processing = False
+
+        self.sample_related_metadata_map_json = samplemetadatamap
+        self.sequence_related_metadata_map_json = sequencemetadatamap
         
         threading.Thread.__init__(self)
      
+    # assumes a hash (dictionary) and the values are lists
+    # this routine takes care of the bookeeping of seeing if the key
+    # is already present in the dictionary.  If it is not present
+    # then we add an empty list to the dictionary with that key
+    # and then add the object value to that list
+    #
+    # if the key was already present in the dictionary then we simply
+    # add the obj to that value list 
     def accumulate_by_key(self, hash, key, obj):
         temp_array = hash.get(key, None)
         if temp_array == None:
@@ -136,6 +141,44 @@ class Submission_Processor (threading.Thread):
                 self.return_results_to_mobedac()
                 if self.exitFlag:
                     return;
+
+    # perform the action on the submissions in the db
+    def perform_action_on_submissions(self, action):
+        self.sess_obj = None
+        try:
+            self.sess_obj = Session()
+            details_hashed_by_submission_id = {}
+                
+            # get all pending submission detail objects and put them in a hash where each key is the submission id
+            # and each value is an array of detail objects and the detail's next_action is the 'action' input parm
+            details_hashed_by_submission_id = {}
+            for detail in self.sess_obj.query(SubmissionDetailsORM).filter(SubmissionDetailsORM.next_action == action).all():
+                self.accumulate_by_key(details_hashed_by_submission_id, detail.submission_id, detail)
+                
+            # loop over the dictionary key is submission id and the value is an array of detail objects
+            for submission_id, detail_array in details_hashed_by_submission_id.items():
+                # get the submission object from the db
+                submission = self.sess_obj.query(SubmissionORM).filter(SubmissionORM.id == submission_id).one()
+                # make sure the base processing dir is there
+                # we do all our work in a processing directory
+                self.create_submission_processing_dir(submission)
+                if self.exitFlag:
+                    return;
+                try:
+                    # assume all is well with these submission detail object(s)
+                    # this is a msg log
+                    self.clear_submission_msg_text(detail_array)
+                    # find the action as a method/function on this SubmissionProcessor class
+                    action_method = getattr(self, action)
+                    # do the action...and call it
+                    action_method(submission, detail_array)
+                except:
+                    self.log_exception("Got exception action: " + action + " processing submission id: " + str(submission.id))
+        except:
+            self.log_exception("error performing action on submission")
+        finally:
+            self.sess_obj.close()
+            self.sess_obj = None
 
     # see if there are any complete sets of submission details 
     # that we can process and perhaps generate the tax table and return that to MoBEDAC
@@ -275,40 +318,6 @@ class Submission_Processor (threading.Thread):
             if response != None:
                 response.close()
             
-    # perform the action on the submissions in the db
-    def perform_action_on_submissions(self, action):
-        self.sess_obj = None
-        try:
-            self.sess_obj = Session()
-            details_hashed_by_submission_id = {}
-                
-            # get all pending submission detail objects and put them in a hash where each key is the submission id
-            # and each value is an array of detail objects
-            details_hashed_by_submission_id = {}
-            for detail in self.sess_obj.query(SubmissionDetailsORM).filter(SubmissionDetailsORM.next_action == action).all():
-                self.accumulate_by_key(details_hashed_by_submission_id, detail.submission_id, detail)
-                
-            for submission_id, detail_array in details_hashed_by_submission_id.items():
-                # get the submission object
-                submission = self.sess_obj.query(SubmissionORM).filter(SubmissionORM.id == submission_id).one()
-                # make sure the base processing dir is there
-                self.create_submission_processing_dir(submission)
-                if self.exitFlag:
-                    return;
-                try:
-                    # assume all is well with these submission detail object(s)
-                    self.clear_submission_msg_text(detail_array)
-                    # find the action
-                    action_method = getattr(self, action)
-                    # do the action
-                    action_method(submission, detail_array)
-                except:
-                    self.log_exception("Got exception action: " + action + " processing submission id: " + str(submission.id))
-        except:
-            self.log_exception("error performing action on submission")
-        finally:
-            self.sess_obj.close()
-            self.sess_obj = None
                 
     def gast(self, submission, submissiondetail_array):
         response = None
@@ -327,6 +336,9 @@ class Submission_Processor (threading.Thread):
                 #gather them by project name
                 self.accumulate_by_key(details_by_project_name, detail.vamps_project_name, detail)
             
+            # write out the metadata
+            self.writeMetadata(submission, submissiondetail_array)
+
             # if we land here then all submission detail objects in this project were uploaded and trimmed successfully and are waiting to be GASTed
             # need to GAST them by project
             for project_name, details in details_by_project_name.items():
@@ -335,7 +347,7 @@ class Submission_Processor (threading.Thread):
                 values = {'project' : project_name,
                           'new_source' : detail.region, 
                           'gast_ok' : '1',
-                          'run_numbers' : str([d.vamps_status_record_id for d in details])  # this is a hack for testing purposes
+                          'run_number' : str([d.vamps_status_record_id for d in details])  # this is a hack for testing purposes
                           }
                 
                 data = urllib.urlencode(values)
@@ -357,7 +369,180 @@ class Submission_Processor (threading.Thread):
         finally:         
             if response != None:
                 response.close()
+                
+    def rename_sample_name(self, metadata_dict):
+        # rename the sample_id field to sample_id_str cuz we use an int in our db for this field
+        sample_id_value = metadata_dict["SAMPLE_NAME"]
+        del metadata_dict["SAMPLE_NAME"]
+        metadata_dict["MOBEDAC_SAMPLE_ID"] = sample_id_value
+        k = 5
          
+    def uppercaseMetadataKeys(self, metadata_dict):
+        uppercaseDict = {}
+        for key,value in metadata_dict.items():
+            uppercaseDict[key.upper()] = value
+        return uppercaseDict
+        
+    # this routine loops over all the submission_detail objects for this submission
+    # and gathers up a list of all of the sample ids, vamps project and dataset names
+    # then loops over that set and inserts/updates metadata rows in each of the appropriate metadata normalized tables
+    def writeMetadata(self, submission, submissiondetail_array):
+        # now loop over all samples, retrieve and store data
+        for detail in submissiondetail_array:
+            sample_obj = SampleORM.get_remote_instance(detail.sample_id, None, self.sess_obj)
+            sample_metadata_json = self.uppercaseMetadataKeys(sample_obj.get_metadata_json())
+            # rename the sample_id field to sample_id_str cuz we use an int in our db for this field
+            self.rename_sample_name(sample_metadata_json)            
+            # seperate sample metadata by table
+            sample_related_value_map = self.seperateMobedacMetadataByTable(sample_metadata_json, self.sample_related_metadata_map_json) 
+            # now build up the update/insert
+            sample_metadata_row_id = self.writeSampleMetadata(sample_related_value_map, detail.sample_id, detail.vamps_project_name, detail.vamps_dataset_name)
+            # now write out the library metadata
+            library_obj = LibraryORM.get_remote_instance(detail.library_id, None, self.sess_obj)
+            library_metadata_json = self.uppercaseMetadataKeys(library_obj.get_metadata_json())
+            # seperate sequence/library metadata by table
+            sequence_value_map = self.seperateMobedacMetadataByTable(library_metadata_json, self.sequence_related_metadata_map_json) 
+            sequence_data = sequence_value_map["SEQUENCE_PREP"] # for now only one table in here for sequences...could be more later?
+            # what are the key fields for the library/sequence:  vamps project, vamps dataset, sample id (our db id)           
+            self.insertOrUpdateRow("SEQUENCE_PREP", sequence_data, {"SAMPLE_ID" : {"value" : sample_metadata_row_id}, "VAMPS_PROJECT" : {"value" : detail.vamps_project_name}, "VAMPS_DATASET" : {"value" : detail.vamps_dataset_name} })
+            
+    
+    # seperate mobedac metadata by table
+    def seperateMobedacMetadataByTable(self, metadata_json, reference_map):
+        # will write out a sample_metadata, common_flds tables...then specific sets depending on which type of sample
+        # we have, human, plant, enviro etc.
+        table_value_map = {}
+        # loop over all of the input metadata and compare it against our configuration data of metadata fields and 
+        # which db tables they belong to...that is in: metadata_map.py and you will find the qiime schema
+        for metadata_field_name, metadata_value in metadata_json.items():
+            table_name = self.find_field_in_map(metadata_field_name, reference_map)
+            if table_name == None:
+                # could not find this field in our map :o
+                # should probably log an error message
+                pass
+            else:
+                # found it so add it to our list of tables and fields
+                self.accumulate_by_key(table_value_map, table_name, { metadata_field_name : metadata_value})
+        return table_value_map
+        
+    # this routine writes out the metadata for the sample/library...this is divided among n tables
+    # some of them are: sample_metadata, common_fields, host_associated_human, host_associated_plant, air, etc
+    # each field name in the metadata (the mixs/mimarks ones) are unique so there is a python class metadata_map.py that has
+    # a dictionary of table => fields and so that is used to find out which input metadata fields belong to which tables
+    # so it is fairly data driven.  
+    def writeSampleMetadata(self, table_value_map, sample_id, vamps_project, vamps_dataset):
+        try:
+            # should now have a dictionary that looks something like:
+            # "SAMPLE_METADATA" : { 
+            #      "SAMPLE_NAME" : {"value" : "2"},
+            #      "PUBLIC"  : {"value" : "3"},
+            #      "ASSIGNED_FROM_GEO"  : {"value" : "4"},
+            #      "ALTITUDE" : {"value" : "5"}, ....  and so on and so on
+            #  },
+            # "COMMON_FIELDS" : {
+            #      "ALKALINITY" : {"value" : "2"},
+            #      "ALKYL_DIETHERS" : {"value" : "2.1"},
+            #      "AMINOPEPT_ACT" : {"value" : "2.1"}, .... and so on
+            #  and so on
+
+            # write out the Sample table row...get the sub dictionary of those fields
+            sample_data = table_value_map["SAMPLE_METADATA"]
+            # what are the key fields for the sample:  vamps project, vamps dataset, mobedac sample id str            
+            self.insertOrUpdateRow("SAMPLE_METADATA", sample_data, {"MOBEDAC_SAMPLE_ID" : {"value" : sample_id}, "VAMPS_PROJECT" : {"value" : vamps_project}, "VAMPS_DATASET" : {"value" : vamps_dataset} })
+            # now get the id of the sample object just INSERT'ed or UPDATE'd
+            result_proxy = test_engine.execute("SELECT sample_id FROM SAMPLE_METADATA WHERE MOBEDAC_SAMPLE_ID='%s' and VAMPS_PROJECT='%s' and VAMPS_DATASET='%s'" % (sample_id, vamps_project, vamps_dataset))
+            sample_metadata_row_id = result_proxy.first()['sample_id']
+            # first remove the sample one because we explicitly did that one first
+            del table_value_map["SAMPLE_METADATA"]
+                        
+            # there are some other special tables to deal with...HOST and HOST_SAMPLE
+            # this is a special case because the HOST_SUBJECT_ID is the mobedac name for the host
+            # and in this qiime schema they create a matching object and tie the HOST and SAMPLE_METADATA together with the HOST_SAMPLE 
+            # associattion table
+            # is there the special HOST_SUBJECT_ID sent to us? if so then we know we have to do the host special processing
+            host_data = table_value_map["HOST"]
+            if(host_data != None):
+                # we are dealing with a HOST data set
+                # write out the HOST table row...get the sub dictionary of those fields
+                
+                # get the mobedac side name of this host
+                host_subject_id = self.find_field_in_list("HOST_SUBJECT_ID", host_data)["value"]
+                # what is the key field we'll use:  host_subject_id          
+                self.insertOrUpdateRow("HOST", host_data, {"HOST_SUBJECT_ID" : {"value" : host_subject_id} })
+                # now get the id of the host object just INSERT'ed or UPDATE'd
+                result_proxy = test_engine.execute("SELECT host_id FROM HOST WHERE HOST_SUBJECT_ID='%s'" % (host_subject_id))
+                host_metadata_row_id = result_proxy.first()['host_id']
+                # now create or update the HOST_SAMPLE row
+                self.insertOrUpdateRow("HOST_SAMPLE", table_value_map["HOST_SAMPLE"], 
+                                       {  "HOST_ID" : {"value" : host_metadata_row_id},
+                                          "SAMPLE_ID" : {"value" : sample_metadata_row_id}  })
+                # don't need these in the list anymore
+                del table_value_map["HOST"]
+                del table_value_map["HOST_SAMPLE"]
+                        
+            # so now we can simply loop over the other table name/field sets and write out the records for those
+            for table_name, field_array in table_value_map.items():
+                self.insertOrUpdateRow(table_name, field_array, {"SAMPLE_ID" : {"value" : sample_metadata_row_id}})
+            
+            return sample_metadata_row_id
+            
+        except:
+            self.log_exception("Some kind of error writing metadata")
+            raise
+            
+    
+    def insertOrUpdateRow(self, table_name, field_value_dict_array, key_maps):
+        # does this exist already?
+        where_clause = " and ".join([ key_field_name + "='" + str(key_value_dict["value"]) + "'"   for key_field_name,key_value_dict in key_maps.items() ])
+        object_select_sql = "SELECT * FROM " + table_name + " WHERE " + where_clause
+        self.log_debug("attempting to locate existing metadata object sql: " + object_select_sql)
+        existing_result_proxy = test_engine.execute("SELECT * FROM " + table_name + " WHERE " + where_clause)
+        if existing_result_proxy.first():
+            # do an update
+            set_str_array = [ field_value_dict.keys()[0] + "='" + str(self.getMetadataValue(field_value_dict.values()[0])) + "'"   for field_value_dict in field_value_dict_array ]
+            set_str = ", ".join(set_str_array)
+            sql = "UPDATE " + table_name + " set " + set_str +" WHERE " + where_clause
+        else:
+            # do a create
+            # convert array of dictionary to just a dictionary of dictionaries
+            # each of the dictionary has just 1 key/value the key is the field name and value is the metadata value, type etc
+            entire_field_set_map = {}
+            for field_dictionary in field_value_dict_array:
+                field_name = field_dictionary.keys()[0]
+                value = field_dictionary[field_name]
+                entire_field_set_map[field_name] = value
+            # now merge in the keys as well...we want to use those in the INSERT
+            entire_field_set_map.update(key_maps)
+            field_list = [field_name for field_name in entire_field_set_map.keys()]
+            value_list =  [self.getMetadataValue(entire_field_set_map[field_name])   for field_name in field_list]
+            sql = "INSERT " + table_name + " (" + ",".join([fld for fld in field_list]) + ") values (" + ",".join(["'"+str(val)+"'" for val in value_list]) + ")" 
+        # now run it
+        self.log_debug("attempting to INSERT/UPDATE metadata object sql: " + sql)
+        result_proxy = test_engine.execute(sql)
+        return result_proxy
+        
+    # for now value_obj could be a string or a dictionary with a 'value' : <the real value> entry
+    # waiting for Mobedac to switch over to the "field name" : { 'value' : 'the value', 'type' : 'the type', ...other stuff } format
+    def getMetadataValue(self, value_obj):
+        if type(value_obj) is dict:
+            return value_obj['value']
+        else:
+            return str(value_obj)
+        
+    def find_field_in_map(self, field_name, metadata_map):
+        for table_name, field_map in metadata_map.items():
+            field_entry = field_map.get(field_name, None)
+            if field_entry != None:
+                return table_name
+        return None
+    
+    def find_field_in_list(self, field_name, field_map_array):
+        for field_data_map in field_map_array:
+            if field_data_map.get(field_name, None) != None:
+                return field_data_map[field_name]
+        return None
+            
+        
     def download(self, submission, submissiondetail_array):
         for detail in submissiondetail_array:
             # lets make a dir for the data for this object  dir:  <root>/submission.id/submission_detail.id/
