@@ -387,6 +387,10 @@ class Submission_Processor (threading.Thread):
     # and gathers up a list of all of the sample ids, vamps project and dataset names
     # then loops over that set and inserts/updates metadata rows in each of the appropriate metadata normalized tables
     def writeMetadata(self, submission, submissiondetail_array):
+        unique_sample_ids = {}
+        for detail in submissiondetail_array:
+            unique_sample_ids[detail.sample_id] = detail.sample_id
+            
         # now loop over all samples, retrieve and store data
         for detail in submissiondetail_array:
             sample_obj = SampleORM.get_remote_instance(detail.sample_id, None, self.sess_obj)
@@ -404,7 +408,7 @@ class Submission_Processor (threading.Thread):
             sequence_value_map = self.seperateMobedacMetadataByTable(library_metadata_json, self.sequence_related_metadata_map_json) 
             sequence_data = sequence_value_map["SEQUENCE_PREP"] # for now only one table in here for sequences...could be more later?
             # what are the key fields for the library/sequence:  vamps project, vamps dataset, sample id (our db id)           
-            self.insertOrUpdateRow("SEQUENCE_PREP", sequence_data, {"SAMPLE_ID" : {"value" : sample_metadata_row_id}, "VAMPS_PROJECT" : {"value" : detail.vamps_project_name}, "VAMPS_DATASET" : {"value" : detail.vamps_dataset_name} })
+            self.insertOrUpdateRow("SEQUENCE_PREP", sequence_data, {"SAMPLE_METADATA_ID" : {"value" : sample_metadata_row_id}, "VAMPS_PROJECT" : {"value" : detail.vamps_project_name}, "VAMPS_DATASET" : {"value" : detail.vamps_dataset_name} })
             
     
     # seperate mobedac metadata by table
@@ -448,10 +452,10 @@ class Submission_Processor (threading.Thread):
             # write out the Sample table row...get the sub dictionary of those fields
             sample_data = table_value_map["SAMPLE_METADATA"]
             # what are the key fields for the sample:  vamps project, vamps dataset, mobedac sample id str            
-            self.insertOrUpdateRow("SAMPLE_METADATA", sample_data, {"MOBEDAC_SAMPLE_ID" : {"value" : sample_id}, "VAMPS_PROJECT" : {"value" : vamps_project}, "VAMPS_DATASET" : {"value" : vamps_dataset} })
+            self.insertOrUpdateRow("SAMPLE_METADATA", sample_data, {"MOBEDAC_SAMPLE_ID" : {"value" : sample_id} })
             # now get the id of the sample object just INSERT'ed or UPDATE'd
-            result_proxy = test_engine.execute("SELECT sample_id FROM SAMPLE_METADATA WHERE MOBEDAC_SAMPLE_ID='%s' and VAMPS_PROJECT='%s' and VAMPS_DATASET='%s'" % (sample_id, vamps_project, vamps_dataset))
-            sample_metadata_row_id = result_proxy.first()['sample_id']
+            result_proxy = test_engine.execute("SELECT SAMPLE_METADATA_ID FROM SAMPLE_METADATA WHERE MOBEDAC_SAMPLE_ID='%s'" % (sample_id))
+            sample_metadata_row_id = result_proxy.first()['SAMPLE_METADATA_ID']
             # first remove the sample one because we explicitly did that one first
             del table_value_map["SAMPLE_METADATA"]
                         
@@ -475,14 +479,21 @@ class Submission_Processor (threading.Thread):
                 # now create or update the HOST_SAMPLE row
                 self.insertOrUpdateRow("HOST_SAMPLE", table_value_map["HOST_SAMPLE"], 
                                        {  "HOST_ID" : {"value" : host_metadata_row_id},
-                                          "SAMPLE_ID" : {"value" : sample_metadata_row_id}  })
+                                          "SAMPLE_METADATA_ID" : {"value" : sample_metadata_row_id}  })
                 # don't need these in the list anymore
                 del table_value_map["HOST"]
                 del table_value_map["HOST_SAMPLE"]
                         
             # so now we can simply loop over the other table name/field sets and write out the records for those
             for table_name, field_array in table_value_map.items():
-                self.insertOrUpdateRow(table_name, field_array, {"SAMPLE_ID" : {"value" : sample_metadata_row_id}})
+                self.insertOrUpdateRow(table_name, field_array, {"SAMPLE_METADATA_ID" : {"value" : sample_metadata_row_id}})
+            
+            # finally write out the object that links the SAMPLE_METADATA to the VAMPS projects and datasets
+            # this row has only foreign keys plus its own row id
+            self.insertOrUpdateRow("VAMPS_PROJ_DS_SAMPLE_METADATA", {}, {"SAMPLE_METADATA_ID" : {"value" : sample_metadata_row_id},
+                                                                         "VAMPS_PROJECT" : {'value' :vamps_project },
+                                                                         "VAMPS_DATASET" : {'value' : vamps_dataset}})
+            
             
             return sample_metadata_row_id
             
@@ -497,7 +508,8 @@ class Submission_Processor (threading.Thread):
         object_select_sql = "SELECT * FROM " + table_name + " WHERE " + where_clause
         self.log_debug("attempting to locate existing metadata object sql: " + object_select_sql)
         existing_result_proxy = test_engine.execute("SELECT * FROM " + table_name + " WHERE " + where_clause)
-        if existing_result_proxy.first():
+        # if we found the row using the key fields and we at least have some non key field values to UPDATE...then do the update else INSERT 
+        if existing_result_proxy.first() and field_value_dict_array :
             # do an update
             set_str_array = [ field_value_dict.keys()[0] + "='" + str(self.getMetadataValue(field_value_dict.values()[0])) + "'"   for field_value_dict in field_value_dict_array ]
             set_str = ", ".join(set_str_array)
