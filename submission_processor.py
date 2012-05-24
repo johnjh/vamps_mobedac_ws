@@ -39,13 +39,13 @@ class Submission_Processor (threading.Thread):
         self.vamps_gast_url = vamps_gast_url
         self.root_dir = processing_dir
         self.halt_processing = False
-
+        # these are the 2 important dictionary maps that map an incoming MOBEDAC metadata field/value into the correct table/column in our db
         self.sample_related_metadata_map_json = samplemetadatamap
         self.sequence_related_metadata_map_json = sequencemetadatamap
         
         threading.Thread.__init__(self)
      
-    # assumes a hash (dictionary) and the values are lists
+    # populates a hash (dictionary) and the values are lists
     # this routine takes care of the bookeeping of seeing if the key
     # is already present in the dictionary.  If it is not present
     # then we add an empty list to the dictionary with that key
@@ -53,6 +53,26 @@ class Submission_Processor (threading.Thread):
     #
     # if the key was already present in the dictionary then we simply
     # add the obj to that value list 
+    #
+    # as an example...
+    # so this can be used to organize parent's and their children.
+    # it is used often in this code to organize Submission and SubmissionDetail
+    # objects that have been read from the db
+    # if each child object has a parent id you could loop through each
+    # and call this method as:
+    #
+    #  children_by_parent_dictionary = {}
+    #  for child_obj in array_of_child_objects_of_various_parents:
+    #     self.accumulate_by_key(children_by_parent_dictionary, child_obj.parent_id, child_obj)
+    #
+    # and when it completed you would have a dictionary of:
+    # 
+    # {
+    #    'parent A id' : [ child_1_of_parent_A, child_2_of_parent_A, ...],
+    #    'parent B id' : [ child_1_of_parent_B, child_2_of_parent_B, ...],
+    #    ...
+    # }
+    #
     def accumulate_by_key(self, hash, key, obj):
         temp_array = hash.get(key, None)
         if temp_array == None:
@@ -129,20 +149,26 @@ class Submission_Processor (threading.Thread):
                 self.log_debug("processing wakeup...")
                 if self.exitFlag:
                     return;
+                # find all submission_details objects that are want to have their data downloaded from MOBEDAC and processed
                 self.perform_action_on_submissions(SubmissionDetailsORM.ACTION_DOWNLOAD)
                 if self.exitFlag:
                     return;
+                # find all submission_details objects that are want to uploaded to VAMPS for processing
                 self.perform_action_on_submissions(SubmissionDetailsORM.ACTION_VAMPS_UPLOAD)
                 if self.exitFlag:
                     return;
+                # find all submission_details objects that are want to be GASTed by VAMPS
                 self.perform_action_on_submissions(SubmissionDetailsORM.ACTION_GAST)
                 if self.exitFlag:
                     return;
+                # now return the answers to MOBEDAC
                 self.return_results_to_mobedac()
                 if self.exitFlag:
                     return;
 
     # perform the action on the submissions in the db
+    # this routine does a search for the given action string
+    # 
     def perform_action_on_submissions(self, action):
         self.sess_obj = None
         try:
@@ -189,6 +215,7 @@ class Submission_Processor (threading.Thread):
             details_hashed_by_submission_id = {}
                 
             # get all submission detail objects that have a status of 'post_results_to_mobedac'
+            # and group them in arrays that are the value of a dictionary whose key is the submission_id
             for detail in self.sess_obj.query(SubmissionDetailsORM).filter(SubmissionDetailsORM.next_action == SubmissionDetailsORM.ACTION_POST_RESULTS_TO_MOBEDAC).all():
                 self.accumulate_by_key(details_hashed_by_submission_id, detail.submission_id, detail)
                 
@@ -213,9 +240,12 @@ class Submission_Processor (threading.Thread):
                 details_by_library_id = {}
                 some_detail_has_incomplete_gasting = False
                 for detail in value:
+                    # look into the VAMPS db and see if the status record for this detail object
+                    # is completed yet?
                     status_row = detail.get_VAMPS_submission_status_row(self.sess_obj)
                     if status_row == None:
                         raise "Error locating vamps_upload_status record found for submission_detail: " + detail.id + " vamps_status_id: " + str(detail.vamps_status_record_id)
+                    # could still be GAST'ing so we can't return info to mobedac yet
                     if status_row[0] != self.VAMPS_GAST_COMPLETE:
                         self.log_debug("Can't return results to MoBEDAC submissiondetail: " + str(detail.id) + " yet, VAMPS status row: " + str(detail.vamps_status_record_id) + " is still: " + status_row[0])
                         some_detail_has_incomplete_gasting = True
@@ -234,7 +264,7 @@ class Submission_Processor (threading.Thread):
                 
                 # now we have all the sampleOrder names set up and a hash of the unique project names (we just want a count of those)
                 project_count = len(unique_project_name_dict)
-                # find out the user
+                # get the Submission object from the db
                 submission = SubmissionORM.get_instance(key, self.sess_obj)
                 taxonomy_table_json = self.get_taxonomy_table(project_count, sampleOrderNames, submission.user, 'family')
                 if taxonomy_table_json == None:
@@ -262,7 +292,7 @@ class Submission_Processor (threading.Thread):
             links[library] = {"Visualization" : get_parm('vamps_landing_page_str') % (detail.vamps_project_name, user) }
         return links
     
-    # post the analysis results back to MoBEDAC
+    # POST the analysis results back to MoBEDAC
     # don't have the analysis links yet. 
     def send_to_mobedac(self, submission, library_ids, details_by_library_id, taxonomy_table_json):
         analysis_links = self.get_analysis_links(submission.user, details_by_library_id)
@@ -279,6 +309,7 @@ class Submission_Processor (threading.Thread):
             # send it
             json_str = json.dumps(results_dict)
             # let's try to log this json into the processing dir
+            # we are writing the json return data to a file in our processing dir just for safe keeping
             open(os.path.join(self.get_submission_processing_dir(submission),self.MOBEDAC_RESULTS_FILE_NAME), "w").write(json_str)
             req = urllib2.Request(mobedac_results_url, json_str, { 'Content-Type' : 'application/json' })
             response = urllib2.urlopen(req)
@@ -295,6 +326,7 @@ class Submission_Processor (threading.Thread):
                 response.close()
                        
     # call VAMPS to get tax table....if we fail then just return a None so we can deal with it better
+    # this is a .php page that I created...I bet Andy could do a better job...should ask him.
     def get_taxonomy_table(self, project_count, projectDatasetNames, user, rank):
         taxonomy_table_url = get_parm('vamps_taxonomy_table_url')
         values = {'sampleOrder' : ",".join(projectDatasetNames),
@@ -318,7 +350,11 @@ class Submission_Processor (threading.Thread):
             if response != None:
                 response.close()
             
-                
+    # Perform the processing to request a GAST from VAMPS
+    # GASTing is performed on a whole project basis...VAMPS does not do dataset-by-dataset GASTing
+    # all datasets in a project are GAST'ed together.
+    # this means that we need to check that all vamps datasets in a particular project have successfully
+    # had their TRIMing done to completion/success...otherwise we won't perform the GAST on their parent projects
     def gast(self, submission, submissiondetail_array):
         response = None
         try:
@@ -341,6 +377,7 @@ class Submission_Processor (threading.Thread):
 
             # if we land here then all submission detail objects in this project were uploaded and trimmed successfully and are waiting to be GASTed
             # need to GAST them by project
+            # loop over all details by project
             for project_name, details in details_by_project_name.items():
                 # can use just a single detail object because we GAST all the datasets in the project
                 detail =  details[0]
@@ -354,6 +391,7 @@ class Submission_Processor (threading.Thread):
                 # Create the Request object
                 request = urllib2.Request(self.vamps_gast_url, data)
                 # Actually do the request, and get the response
+                # POST the GAST request to VAMPS
                 response = urllib2.urlopen(request)
                 if response.code != 200:
                     raise "Error starting GAST processing in VAMPS: " + response.msg
@@ -393,7 +431,7 @@ class Submission_Processor (threading.Thread):
             
         # now loop over all samples, retrieve and store data
         for detail in submissiondetail_array:
-            sample_obj = SampleORM.get_remote_instance(detail.sample_id, None, self.sess_obj)
+            sample_obj = SampleORM.getFromMOBEDAC(detail.sample_id, None, self.sess_obj)
             sample_metadata_json = self.uppercaseMetadataKeys(sample_obj.get_metadata_json())
             # rename the sample_id field to sample_id_str cuz we use an int in our db for this field
             self.rename_sample_name(sample_metadata_json)            
@@ -402,7 +440,7 @@ class Submission_Processor (threading.Thread):
             # now build up the update/insert
             sample_metadata_row_id = self.writeSampleMetadata(sample_related_value_map, detail.sample_id, detail.vamps_project_name, detail.vamps_dataset_name)
             # now write out the library metadata
-            library_obj = LibraryORM.get_remote_instance(detail.library_id, None, self.sess_obj)
+            library_obj = LibraryORM.getFromMOBEDAC(detail.library_id, None, self.sess_obj)
             library_metadata_json = self.uppercaseMetadataKeys(library_obj.get_metadata_json())
             # seperate sequence/library metadata by table
             sequence_value_map = self.seperateMobedacMetadataByTable(library_metadata_json, self.sequence_related_metadata_map_json) 
@@ -554,7 +592,8 @@ class Submission_Processor (threading.Thread):
                 return field_data_map[field_name]
         return None
             
-        
+    # download the raw untrimmed sequence file from MOBEDAC and convert it
+    # to Andy's clean fa format
     def download(self, submission, submissiondetail_array):
         for detail in submissiondetail_array:
             # lets make a dir for the data for this object  dir:  <root>/submission.id/submission_detail.id/
@@ -570,9 +609,10 @@ class Submission_Processor (threading.Thread):
             except:
                 self.log_to_submission_detail(detail, "Error retrieving sequence set: " + detail.sequenceset_id)
                 return        
-            # if all went ok then mark this as completed
+            # if all went ok with the download and conversion then mark this submission_detail as completed
+            # the next step of work to do is UPLOAD to VAMPS
             detail.next_action = SubmissionDetailsORM.ACTION_VAMPS_UPLOAD
-        # save it
+        # save all the modified detail objects in the cache to the db
         self.sess_obj.commit()
 
     # call back to MoBEDAC and get the sequence file....could take a long time
@@ -586,6 +626,7 @@ class Submission_Processor (threading.Thread):
             self.log_debug("attempting download of seq file with url: " + full_seq_file_download_url)
             remote_file_handle = urllib2.urlopen(full_seq_file_download_url)                
             # is it fasta or what?
+            # Tobi is putting the file type into the HTTP header
             response_headers = remote_file_handle.info().headers
             # assume this
             file_type = "fasta"
@@ -596,10 +637,12 @@ class Submission_Processor (threading.Thread):
                 if idx == 0:
                     file_type = hlower[(idx + len("content-type:")):].strip().replace("application/","")
                     break
+            # if we didn't find a type we know then default it
             if file_type not in valid_file_types:
                 file_type = "fasta"
             # now write out the raw file
             raw_seq_file_name = self.get_raw_sequence_file_name(file_type, processing_dir)
+            # this could be an sff file? which would be binary
             binary_flag = "b" if file_type == "sff" else ""
             raw_seq_file = open(raw_seq_file_name, "w" + binary_flag)
             buffer_size=8192
@@ -626,7 +669,8 @@ class Submission_Processor (threading.Thread):
     def get_sequence_file_base_name(self, file_type, processing_dir):
         return os.path.join(processing_dir, Submission_Processor.MOBEDAC_SEQUENCE_FILE_NAME_PREFIX)
 
-    # convert from raw format and create clean file and possibly the quality file too
+    # VAMPS wants a fa file in 'clean' format
+    # convert from raw format to create clean file and possibly the quality file too
     def convert_sequence_file(self, file_type, processing_dir):
         raw_file_handle = None
         clean_seq_file_handle = None
@@ -670,21 +714,26 @@ class Submission_Processor (threading.Thread):
                 clean_seq_file_handle.close()
             if quality_file_handle != None:
                 quality_file_handle.close()
-        
+    
+    # upload each detail object (a library=sequence file) at a time to VAMPS
     def vamps_upload(self, submission, submissiondetail_array):
         for detail in submissiondetail_array:
             self.vamps_upload_helper(submission, detail)
-            
+    
+    # this routine does the upload to VAMPS for one submissiondetail object (which represents a single sequence file)
     def vamps_upload_helper(self, submission, submissiondetail):
-        # start downloading from MoBEDAC
-        # get the project object
+        # get the project object from MOBEDAC
+        # could have saved all of these projects, library objects here on the API side's db
+        # but it is very quick to call over to MOBEDAC to retrieve their json data so we just do that
+        # since this processing is taking place asynchronously on our dime
         try:
-            project = ProjectORM.get_remote_instance(submissiondetail.project_id, None, self.sess_obj)
+            project = ProjectORM.getFromMOBEDAC(submissiondetail.project_id, None, self.sess_obj)
         except:
             self.log_to_submission_detail(submissiondetail, "Upload to VAMPS, Error retrieving submission project: " + submissiondetail.project_id)
             return
         try:
-            library = LibraryORM.get_remote_instance(submissiondetail.library_id, None, self.sess_obj)
+            # get the Library from MOBEDAC
+            library = LibraryORM.getFromMOBEDAC(submissiondetail.library_id, None, self.sess_obj)
         except:
             self.log_to_submission_detail(submissiondetail, "Upload to VAMPS, Error retrieving submission library: " + submissiondetail.library_id)
             self.log_exception("Upload to VAMPS, Error retrieving submission library: " + submissiondetail.library_id)
@@ -693,8 +742,10 @@ class Submission_Processor (threading.Thread):
         try:            
             # possible errors to check for
             # check vamps_upload_info and vamps_project_info for duplicate project/dataset combos
-            # need generated project name, dataset name               
-            submissiondetail.vamps_status_record_id = self.create_and_upload(submission, submissiondetail, project, library)
+            # need generated project name, dataset name         
+            #
+            # this routine will create the primer, key, param files and then submit      
+            submissiondetail.vamps_status_record_id = self.create_files_and_upload(submission, submissiondetail, project, library)
     
             # if all went ok then mark this as completed
             submissiondetail.next_action = SubmissionDetailsORM.ACTION_GAST
@@ -706,7 +757,7 @@ class Submission_Processor (threading.Thread):
                 
     # need to create 4 files to upload to VAMPS
     # sequence file, run key file, primer file and params file
-    def create_and_upload(self, submission, submission_detail, project, library_obj): 
+    def create_files_and_upload(self, submission, submission_detail, project, library_obj): 
         processing_dir = os.path.join(self.create_submission_detail_processing_dir(submission, submission_detail),"")
 
         # now create the primer file
@@ -727,9 +778,10 @@ class Submission_Processor (threading.Thread):
         self.create_params_file(param_file_name, submission.user, run_key, project.description[0:255], "Dataset description test", project.name)
         
         # now send the files on up
-        vamps_status_record_id = self.post_sequence_data(submission_detail, processing_dir + Submission_Processor.MOBEDAC_SEQUENCE_FILE_NAME_PREFIX, primer_file_name, run_key_file_name, param_file_name)
+        vamps_status_record_id = self.upload_to_vamps(submission_detail, processing_dir + Submission_Processor.MOBEDAC_SEQUENCE_FILE_NAME_PREFIX, primer_file_name, run_key_file_name, param_file_name)
         return vamps_status_record_id
     
+    # check with Andy on what he wants for this
     def create_params_file(self, param_file_name, vamps_user, run_key, project_description, dataset_description, project_title):
         params_file = open(param_file_name, 'w')
         params_file.write("username=%s\n" % (vamps_user))
@@ -742,8 +794,27 @@ class Submission_Processor (threading.Thread):
         params_file.flush()
         params_file.close()
 
+    # generate the run key file...format of this can be found in the Upload section on the VAMPS website
+    def write_run_key_file(self, run_key_file_name, key_hash):
+        key_file = open(run_key_file_name, 'w')
+        key_line = Template("$key\t$direction\t$region\t$project\t$dataset\n").substitute(key_hash)
+        key_file.write(key_line)
+        key_file.close()
         
-    def post_sequence_data(self, submission_detail, sequence_file_name_prefix, primer_file_name, run_key_file_name, param_file_name):
+    # generate the primer file...format of this can be found in the Upload section on the VAMPS website    
+    def create_primer_file(self, primer_array, primer_file_name):
+        primer_file = open(primer_file_name, 'w')
+        p_index = 0
+        for primer in primer_array:
+            # force in some defaults...maybe mobedac won't have them
+            primer["name"] = primer.get("name", "p_" + str(p_index))
+            primer["location"] = primer.get("location", "p_" + str(p_index))
+            primer_line = Template("$name\t$direction\t$sequence\t$regions\t$location\n").substitute(primer)
+            primer_file.write(primer_line)
+            p_index += 1
+        primer_file.close()
+            
+    def upload_to_vamps(self, submission_detail, sequence_file_name_prefix, primer_file_name, run_key_file_name, param_file_name):
         response = None
         try:
             # headers contains the necessary Content-Type and Content-Length
@@ -757,7 +828,7 @@ class Submission_Processor (threading.Thread):
                          }
             # where to send it?
             vamps_upload_url = get_parm('vamps_data_post_url')
-            # do we also send a qual file? if one was generated they we should do it
+            # do we also send a qual file? if one was generated then we should send it
             possible_qual_file_name = sequence_file_name_prefix + ".qual"
             if os.path.exists(possible_qual_file_name):
                 vamps_upload_url = get_parm('vamps_data_post_url_with_qual_file')
@@ -766,10 +837,12 @@ class Submission_Processor (threading.Thread):
             datagen, headers = encode.multipart_encode(post_params)
             # Create the Request object
             request = urllib2.Request(vamps_upload_url, datagen, headers)
-            # Actually do the request, and get the response
+            # Actually do the POST to VAMPS, and get the response
             response = urllib2.urlopen(request)
             if response.code != 200:
                 raise "Error uploading sequence files to VAMPS: " + response.msg
+            # this response string is very important because if things were successful then it holds
+            # the id of the vamps status record that we will need in our processing
             response_str = response.read()
             self.log_debug("Successfully uploaded to VAMPS submission_detail: " + str(submission_detail.id) + " got response id: " + response_str)
             return response_str
@@ -781,23 +854,3 @@ class Submission_Processor (threading.Thread):
                 response.close()
             pass
 
-    
-    def write_run_key_file(self, run_key_file_name, key_hash):
-        key_file = open(run_key_file_name, 'w')
-        key_line = Template("$key\t$direction\t$region\t$project\t$dataset\n").substitute(key_hash)
-        key_file.write(key_line)
-        key_file.close()
-        
-        
-    def create_primer_file(self, primer_array, primer_file_name):
-        primer_file = open(primer_file_name, 'w')
-        p_index = 0
-        for primer in primer_array:
-            # force in some defaults...maybe mobedac won't have them
-            primer["name"] = primer.get("name", "p_" + str(p_index))
-            primer["location"] = primer.get("location", "p_" + str(p_index))
-            primer_line = Template("$name\t$direction\t$sequence\t$regions\t$location\n").substitute(primer)
-            primer_file.write(primer_line)
-            p_index += 1
-        primer_file.close()
-    

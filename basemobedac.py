@@ -20,7 +20,7 @@ class BaseMoBEDAC():
     BASE_CREATION = "creation"
     
     @classmethod
-    def get_remote_instance(cls, id, source, sess_obj):
+    def getFromMOBEDAC(cls, id, source, sess_obj):
         conn = None
         complete_url = ""
         try:

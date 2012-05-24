@@ -4,6 +4,7 @@ Dir['vendor/gems/*/recipes/*.rb','vendor/plugins/*/recipes/*.rb'].each { |plugin
 
 load 'config/deploy' # remove this line to skip loading any of the default tasks
 
+# after a standard deploy:update is run the config_link:symlink and upload_data_link:symlink tasks are run
 after  'deploy:update_code','config_link:symlink', 'upload_data_link:symlink'
 
 namespace :deploy do
@@ -16,7 +17,7 @@ namespace :deploy do
     puts "Got to the dummy final task"
   end
 
-  
+  # doesn't work for python...only Ruby on Rails app...don't really need this here
   task :restart do
     run "touch #{current_release}/tmp/restart.txt"
   end
@@ -25,6 +26,7 @@ namespace :deploy do
   end
 end
 
+# makes a symlink for ws.ini so it can really reside in shared/...
 namespace :config_link do
   desc "Make symlink for ws.ini"
   task :symlink do

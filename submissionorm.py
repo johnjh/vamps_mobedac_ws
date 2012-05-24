@@ -112,7 +112,7 @@ class SubmissionORM(Base, BaseMoBEDAC):
         for lib_id in libraries:
             try:
                 mobedac_logger.info("Retrieving remote library: " + lib_id);
-                library_hash[lib_id] = curr_library = LibraryORM.get_remote_instance(lib_id, None, sess_obj)
+                library_hash[lib_id] = curr_library = LibraryORM.getFromMOBEDAC(lib_id, None, sess_obj)
             except Exception as e:
                 # some kind of error 
                 raise SubmissionException("There was an error retrieving library: " + lib_id + " error: " + e.value)
@@ -120,7 +120,7 @@ class SubmissionORM(Base, BaseMoBEDAC):
             sample_id = curr_library.sample
             try:
                 mobedac_logger.info("Retrieving remote sample: " + sample_id);
-                sample_hash[sample_id] = curr_sample = SampleORM.get_remote_instance(sample_id, None, sess_obj)
+                sample_hash[sample_id] = curr_sample = SampleORM.getFromMOBEDAC(sample_id, None, sess_obj)
             except Exception as e:
                 # some kind of error 
                 raise SubmissionException("There was an error retrieving sample: " + sample_id + " error: " + e.value)
@@ -128,7 +128,7 @@ class SubmissionORM(Base, BaseMoBEDAC):
             project_id = curr_sample.project
             try:
                 mobedac_logger.info("Retrieving remote project: " + project_id);
-                project_hash[project_id] = curr_project = ProjectORM.get_remote_instance(project_id, None, sess_obj)
+                project_hash[project_id] = curr_project = ProjectORM.getFromMOBEDAC(project_id, None, sess_obj)
                 mobedac_logger.info("done Retrieving remote project: " + project_id);
             except Exception as e:
                 # some kind of error 
@@ -182,6 +182,7 @@ class SubmissionORM(Base, BaseMoBEDAC):
             new_details.vamps_dataset_name = dataset_name
             new_details.sequenceset_id = curr_library.get_sequence_set_id_array()[0] # just take the first one for now
             mobedac_logger.info("new_details has sequence set id: " + new_details.sequenceset_id)
+            # this is the starting value for next_action....call mobedac and download the sequence data
             new_details.next_action = SubmissionDetailsORM.ACTION_DOWNLOAD
             mobedac_logger.info("DONE preparing the submission detail object");
 

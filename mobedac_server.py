@@ -19,15 +19,28 @@ import traceback
 
 
 class Root(object):
-    project = RESTResource(ProjectORM)
-    sample = RESTResource(SampleORM)
-    library = RESTResource(LibraryORM)
-    sequenceset = RESTResource(SequenceSetORM)
+    
+    # we no long need to register REST http listeners for project, sample, library and sequence set 
+    # since this service only does processing of requests from mobedac...we no longer support
+    # the retrieval of projects, samples, libraries, seq sets because all of that resides on mobedac...why
+    # should we store it too???
+#    project = RESTResource(ProjectORM)
+#    sample = RESTResource(SampleORM)
+#    library = RESTResource(LibraryORM)
+#    sequenceset = RESTResource(SequenceSetORM)
+
+    # register a url that would look like:    http://<host:port>/<base path>/submission
     submission = RESTResource(SubmissionORM)
-    submissiondetails = RESTResource(SubmissionDetailsORM)
+    
+    # we don't need to expose this url to the outside world either...http://<host:port>/<base path>/submission_details
+#    submissiondetails = RESTResource(SubmissionDetailsORM)
 
     def __init__(self, submission_processor_thread):
         self.submission_processor_thread = submission_processor_thread
+
+    # all of these @cherrypy.expose are annotations on these methods
+    # that means you can tack them onto the end of the base path on VAMPS and it will do something
+    # like http://<host:port>/<base path>/log_level_debug  will turn the logging to debug
 
     @cherrypy.expose
     def default(self, *args):
@@ -54,6 +67,9 @@ class Root(object):
     def start_processor(self):
         self.submission_processor_thread.enable_processing()
 
+    # this is exposes a url to the world to actually stop the server
+    # http://<host:port>/<base path>/stop_the_server will do just that!!! it takes about 30 seconds before it quits
+    # so give it time!!
     @cherrypy.expose
     def stop_the_server(self):
         try:
@@ -81,15 +97,18 @@ if __name__ == '__main__':
         mobedac_logger.debug("in main of mobedac_server")
 
         submission_processor_thread = Submission_Processor(10, get_parm('vamps_data_post_url'), get_parm('vamps_data_gast_url'), workingfiledir)
+        # do we want to not start listening to requests on startup
         disable_processor_flag = get_parm("processor_disabled_on_startup")
         if disable_processor_flag != None and disable_processor_flag.lower() == 'true':
             submission_processor_thread.disable_processing()
         submission_processor_thread.start()
+        # force cherrypy to use the port WE want
         cherrypy.config.update({'server.socket_port': int(port),})
+        
         the_root = Root(submission_processor_thread)
         cherrypy.tree.mount(the_root, logicalpath)
         cherrypy.engine.start()
-        cherrypy.engine.block()
+        cherrypy.engine.block()  # we don't return from this call...cherrypy takes over and starts handling requests
         the_root.stop_the_server()
 
     except:
