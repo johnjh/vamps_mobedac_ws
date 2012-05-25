@@ -99,7 +99,7 @@ class SubmissionORM(Base, BaseMoBEDAC):
         return result
 
     
-
+    
     def initialize_for_processing(self, sess_obj):
         
         # need to call back to mobedac and figure out all the other objects etc

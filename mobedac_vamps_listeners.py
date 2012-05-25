@@ -525,10 +525,18 @@ sequencefiles_by_types = {
                 }
 sequencefiles = None
 
+# This is a very important array
+# This array will contain the names of each function below that got called
+# by the API server.  In this way during a test run we tell the API server to 
+# process a request and it calls over here to these 2 listeners who imitate MOBEDAC and VAMPS
+# The test_gast_taxtable.py test script check to make sure that these 2 listeners got the correct
+# number of calls made to them in order to have correctly handled a submission request.
 requests_array = []
 
 class VampsListener():
     
+    # this method pretends to be the URL that would be called by our api on the VAMPS server
+    # for upload of data with a qual file
     @cherrypy.expose
     def upload_data_post_with_qual_file(self, seqfile, primfile, keyfile, paramfile, qualfile):
         global requests_array
@@ -542,6 +550,8 @@ class VampsListener():
         dbConn.close()
         return str(status_id)
 
+    # this method pretends to be the URL that would be called by our api on the VAMPS server
+    # for upload of data without a qual file
     @cherrypy.expose
     def upload_data_post(self, seqfile, primfile, keyfile, paramfile):
         global requests_array
@@ -555,6 +565,8 @@ class VampsListener():
         dbConn.close()
         return str(status_id)
 
+    # this method pretends to be the URL that would be called by our api on the VAMPS server
+    # for GASTing
     @cherrypy.expose
     def upload_data_gast(self, *vpath, **params):
         global requests_array
@@ -569,6 +581,8 @@ class VampsListener():
         # find the vamps_upload_status record
         return "in VampsListener upload_data_gast"
 
+    # this method pretends to be the URL that would be called by our api on the VAMPS server
+    # for generating a tax table in the special biom sparse format
     @cherrypy.expose
     def generate_taxonomy_table(self, *vpath, **params):
         global requests_array
@@ -576,7 +590,11 @@ class VampsListener():
         # find the vamps_upload_status record
         return '{"taxonomy_table" : "table results"}'
 
-
+#This class pretends to be the Mobedac server which will send us mobedac projects, samples, libraries and
+# sequence files
+# as well as accept our results when we are done.
+# this class is not used to actually generate the original request to our API server to do a processing submission
+# that is simply handled by the test_gast_taxtable.py script
 class MobedacListener():
     @cherrypy.expose
     def project(self, *vpath, **params):
@@ -620,9 +638,14 @@ class MobedacListener():
         print cherrypy.request.body.read()
         requests_array.append("POST results")
         return ""
-        
+
+# an instance of this class is passed to the cherrypy module
 class Root(object):
+    # accept calls in to url:  .../vamps/abcd
+    # send the above .../vamps/abcd request to VampsListener.abcd() 
     vamps = VampsListener()
+    # accept  .../mobedac/efgh....
+    # send the above .../vamps/efgh request to MobedacListener.efgh() 
     mobedac = MobedacListener()    
     def __init__(self ):
         pass
@@ -638,6 +661,12 @@ class Root(object):
         global requests_array
         requests_array = []
 
+
+# This VAMPS processor thread is running in the background as part of trying to imitate VAMPS doing trimming, gasting
+# This exists because we want to pretend that our calls to VAMPS really take a minute or two to complete each step of trimming and gasting.
+# in this way our API server will really be tested because it uses a processing thread loop that keeps checking VAMPS status of our requests
+# This routine slowly changes the status of the VAMPS status record from TRIM_PROCESSING to TRIM_SUCCESS and then
+# from GAST_PROCESSING to GAST_SUCCESS slowly just like VAMPS would do.
 def vamps_processor_thread(*args):
     while True:
         # create the row in VAMPS db
@@ -666,9 +695,19 @@ def vamps_processor_thread(*args):
         time.sleep(80)
         pass
 
+# some threading code...this starts up the above vamps_processor_thread
 make_thread = lambda fn, *args: Thread(None, fn, None, args).start()  
 make_thread(vamps_processor_thread)
 
+# this routine does all the work
+# it tells cherrypy to use this Root object which is configured to listen to urls:
+# http://localhost:8081/vamps/...
+# and
+# http://localhost:8081/mobedac/...
+#
+# The ../vamps/...  calls will goto the VampsListener class methods
+# The ../mobedac/...  calls will goto the MobedacListener class methods
+# 
 
 def start_listeners():
     try:
@@ -681,6 +720,7 @@ def start_listeners():
         traceback.print_exception(exc_type, exc_value, exc_traceback)
         sys.exit()
 
+# come here to really run things
 if __name__ == '__main__':
     start_listeners()
     

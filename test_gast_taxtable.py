@@ -57,6 +57,9 @@ def postSubmission(submission_object):
 def change_sequence_file_type(new_type):
     urllib2.urlopen("http://localhost:8081/mobedac/set_sequence_set_file_type/" + new_type)                
 
+# main routine for each submission request we want to make
+# first clears the db
+# then tells the mobedac_vamps_listener process to clear out any data it has accumulated
 def test_by_type(seq_file_type, submission_object, expected_names):
     print "***** Starting test for file type: " + seq_file_type
     
@@ -77,6 +80,8 @@ def test_by_type(seq_file_type, submission_object, expected_names):
         submission_json = json.loads(submission_str)
         overall_status = submission_json['status_code']
         if overall_status == 1:
+            # call over to the mobedac_vamps_listener.py process and get 
+            # the list of all calls that it registered made to it from our API service
             listener_calls = getListenerResults()
             print "Calls made to Mobedac: " + listener_calls
             print "Expcted Calls Mobedac: " + str(expected_names)
@@ -103,7 +108,7 @@ expected_names_123 = ['upload_data_post', 'upload_data_post', 'upload_data_post'
 expected_names = ['upload_data_post', 'upload_data_gast', 'generate_taxonomy_table', 'POST results']
 test_by_type('fasta', submission_data_l123, expected_names_123)
 test_by_type('fasta', submission_data_l1_only, expected_names)
-#test_by_type('fastq_small', submission_data_l1_only, expected_names)
-#test_by_type('sff_small',submission_data_l1_only, expected_names)
+test_by_type('fastq_small', submission_data_l1_only, expected_names)
+test_by_type('sff_small',submission_data_l1_only, expected_names)
 #test_by_type('fastq_large', expected_names)
 
