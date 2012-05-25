@@ -5,7 +5,8 @@ Dir['vendor/gems/*/recipes/*.rb','vendor/plugins/*/recipes/*.rb'].each { |plugin
 load 'config/deploy' # remove this line to skip loading any of the default tasks
 
 # after a standard deploy:update is run the config_link:symlink and upload_data_link:symlink tasks are run
-after  'deploy:update_code', 'fixup_git_files:set_group_permissions', 'config_link:symlink', 'upload_data_link:symlink'
+# after  'deploy:update_code', 'fixup_git_files:set_group_permissions', 'config_link:symlink', 'upload_data_link:symlink'
+after  'deploy:update_code', 'config_link:symlink', 'upload_data_link:symlink'
 
 namespace :deploy do
   task :start do
@@ -41,12 +42,12 @@ namespace :upload_data_link do
   end
 end
 
-namespace :fixup_git_files do
-  desc "Set the group permssions on all files to group writable"
-  task :set_group_permissions do
-    run "chmod -R g+w #{deploy_to}/shared/cached-copy/*"
-  end
-end
+# namespace :fixup_git_files do
+#   desc "Set the group permssions on all files to group writable"
+#   task :set_group_permissions do
+#     run "chmod -R g+w #{deploy_to}/shared/cached-copy/.git/*"
+#   end
+# end
 
 namespace :server_maint do
   desc "stop the mobedac service"
