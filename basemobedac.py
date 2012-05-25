@@ -25,6 +25,7 @@ class BaseMoBEDAC():
         complete_url = ""
         try:
             # dev mode?
+            my_remote_objects_are_local = get_parm("remote_objects_are_local")
             if get_parm("remote_objects_are_local").lower() == 'true':
                 new_obj = cls.get_instance(id, sess_obj)
                 if new_obj == None:
