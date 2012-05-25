@@ -7,6 +7,7 @@ import traceback
 import json
 import time
 from threading import Thread
+from mycfg import *
 
 projects = {'p1' : {'id' : 'p1', 'name': 'ICM_PRJ', 'about': 'This is projectG update2', 'url' : 'testurl', 'pi' : 'John Hufnagle',
         "funding_source" : "keck",
@@ -499,27 +500,27 @@ sequencesets = {
 
 sequencefiles_by_types = {
                 "sff_large" : 
-                {'icml1' : {'name' : '/Users/johnhufnagle/Documents/workspace/mobedac_rest/src/icml1.sff_large',
+                {'icml1' : {'name' : work_path_local+'/src/icml1.sff_large',
                             'format' : "sff"}
                  },
                 "sff_small" : 
-                {'icml1' : {'name' : '/Users/johnhufnagle/Documents/workspace/mobedac_rest/src/icml1.sff_small',
+                {'icml1' : {'name' : work_path_local+'/src/icml1.sff_small',
                             'format' : "sff"}
                  },
                 "fastq_small" : 
-                {'icml1' : {'name' : '/Users/johnhufnagle/Documents/workspace/mobedac_rest/src/icml1.fastq_small',
+                {'icml1' : {'name' : work_path_local+'/src/icml1.fastq_small',
                             'format' : "fastq"}
                  },
                 "fastq_large" : 
-                {'icml1' : {'name' : '/Users/johnhufnagle/Documents/workspace/mobedac_rest/src/icml1.fastq_large',
+                {'icml1' : {'name' : work_path_local+'/src/icml1.fastq_large',
                             'format' : "fastq"}
                  },
                 "fasta" : 
-                {'icml1' : {'name' : '/Users/johnhufnagle/Documents/workspace/mobedac_rest/src/icml1.fa',
+                {'icml1' : {'name' : work_path_local+'/src/icml1.fa',
                             'format' : "fasta"},
-                 'icml2' : {'name' : '/Users/johnhufnagle/Documents/workspace/mobedac_rest/src/icml2.fa',
+                 'icml2' : {'name' : work_path_local+'/src/icml2.fa',
                             'format' : "fasta"},
-                 'icml3' : {'name' : '/Users/johnhufnagle/Documents/workspace/mobedac_rest/src/icml3.fa',
+                 'icml3' : {'name' : work_path_local+'/src/icml3.fa',
                             'format' : "fasta"}
                  }
                 }
@@ -542,7 +543,7 @@ class VampsListener():
         global requests_array
         requests_array.append("upload_data_post")
         # create the row in VAMPS db
-        dbConn = MySQLdb.connect("localhost","john","oweneego","vamps_test" )
+        dbConn = MySQLdb.connect("localhost", db_user_local, db_passw_local,"vamps_test" )
         cursor = dbConn.cursor()
         cursor.execute("insert into vamps_upload_status(user, status, status_message) values ('mobedac', 'TRIM_PROCESSING', 'Vamps is processing');")
         status_id = dbConn.insert_id()
@@ -557,7 +558,7 @@ class VampsListener():
         global requests_array
         requests_array.append("upload_data_post")
         # create the row in VAMPS db
-        dbConn = MySQLdb.connect("localhost","john","oweneego","vamps_test" )
+        dbConn = MySQLdb.connect("localhost", db_user_local, db_passw_local,"vamps_test" )
         cursor = dbConn.cursor()
         cursor.execute("insert into vamps_upload_status(user, status, status_message) values ('mobedac', 'TRIM_PROCESSING', 'Vamps is processing');")
         status_id = dbConn.insert_id()
@@ -571,7 +572,7 @@ class VampsListener():
     def upload_data_gast(self, *vpath, **params):
         global requests_array
         requests_array.append("upload_data_gast")
-        dbConn = MySQLdb.connect("localhost","john","oweneego","vamps_test" )
+        dbConn = MySQLdb.connect("localhost", db_user_local, db_passw_local,"vamps_test" )
         cursor = dbConn.cursor()
         sql = "UPDATE vamps_upload_status SET status='GAST_PROCESSING' WHERE id in (" + params['run_number'].replace("[","").replace("]","") + ");"
         print "updating gast processing vamps upload status with sql: " + sql
@@ -670,7 +671,7 @@ class Root(object):
 def vamps_processor_thread(*args):
     while True:
         # create the row in VAMPS db
-        dbConn = MySQLdb.connect("localhost","john","oweneego","vamps_test" )
+        dbConn = MySQLdb.connect("localhost", db_user_local, db_passw_local,"vamps_test" )
         cursor = dbConn.cursor()
 
         cursor.execute("SELECT * FROM vamps_upload_status WHERE status='TRIM_PROCESSING';")

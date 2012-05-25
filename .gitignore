@@ -6,6 +6,7 @@ config/*
 *.cfg
 .pydevproject
 .project
+mycfg.py
 
 # Packages #
 ############
