@@ -6,7 +6,8 @@ from submissionorm import SubmissionORM
 from projectorm import ProjectORM
 from libraryorm import LibraryORM
 from sampleorm import SampleORM
-import json as jsonmgl190
+#import json as jsonmgl190
+import json as json
 from Bio import SeqIO
 import os
 from string import Template
