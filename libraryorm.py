@@ -93,34 +93,77 @@ class LibraryORM(Base, BaseMoBEDAC):
     def get_sequence_set_id_array(self):
         return self.sequence_set_ids.split(",")
    
+#library's metadata
     def get_run_key(self):
         lib_metadata = json.loads(self.mbd_metadata)
-        return lib_metadata['run_key']
+        return lib_metadata['forward_barcodes']["value"] #run_key
         
     def get_direction(self):
         lib_metadata = json.loads(self.mbd_metadata)
-        return lib_metadata['direction']
+        seq_dir = self.convert_dir_format(lib_metadata['seq_direction']["value"])
+        return seq_dir #direction
         
     def get_domain(self):
         lib_metadata = json.loads(self.mbd_metadata)
-        return lib_metadata['domain']
+        return lib_metadata['domain']["value"]
         
     def get_region(self):
         lib_metadata = json.loads(self.mbd_metadata)
-        return lib_metadata['region']
-                
+        return lib_metadata['target_subfragment']["value"] #region
+
     def get_primers(self):
-        lib_metadata = json.loads(self.mbd_metadata)
-        primer_count = int(lib_metadata['num_primers'])
+    #        lib_metadata    = json.loads(self.mbd_metadata)
+        forward_primers = self.get_forward_primers().split(',')
+        reverse_primers = self.get_reverse_primers().split(',')
+    #        primer_count = int(lib_metadata['num_primers'])
+        primers = self.collect_primers_info(forward_primers, "F")
+        primers += self.collect_primers_info(reverse_primers, "R")
+        return primers
+    
+    def collect_primers_info(self, primer_info, primer_dir):
         primers = []
-        for i in range(1,primer_count+1):
+        for i, val in enumerate(primer_info):
             primer = {}
-            primer['name'] = lib_metadata['primer_' + str(i) + '_name']
-            primer['direction'] = lib_metadata['primer_' + str(i) + '_direction']
-            primer['sequence'] = lib_metadata['primer_' + str(i) + '_sequence'].replace("Z", "Y")
-            primer['regions'] = lib_metadata['primer_' + str(i) + '_region']
-            primer['location'] = lib_metadata['primer_' + str(i) + '_location']
+            #fake name:
+            primer['name']      = primer_dir + "_primer_" + str(i) + "_name"
+            primer['direction'] = primer_dir
+            primer['sequence']  = val.replace("Z", "Y")
+            primer['regions']   = self.get_region()
+            primer['location']  = primer['name']
             primers.append(primer)
         return primers
+                
+#    def get_primers(self):
+#        lib_metadata    = json.loads(self.mbd_metadata)
+#        forward_primers = self.get_forward_primers().split(',')
+#        reverse_primers = self.get_reverse_primers().split(',')
+##        primer_count = int(lib_metadata['num_primers'])
+#        primer_count = int(lib_metadata['num_primers'])
+#        primers = []
+#        for i in range(1,primer_count+1):
+#            primer = {}
+#            primer['name'] = lib_metadata['primer_' + str(i) + '_name']
+#            primer['direction'] = lib_metadata['primer_' + str(i) + '_direction']
+#            primer['sequence'] = lib_metadata['primer_' + str(i) + '_sequence'].replace("Z", "Y")
+#            primer['regions'] = lib_metadata['primer_' + str(i) + '_region']
+#            primer['location'] = lib_metadata['primer_' + str(i) + '_location']
+#            primers.append(primer)
+#        return primers
+    
+    def get_forward_primers(self):
+        lib_metadata = json.loads(self.mbd_metadata)
+        return lib_metadata['forward_primers']["value"]
+            
+    def get_reverse_primers(self):
+        lib_metadata = json.loads(self.mbd_metadata)
+        return lib_metadata['reverse_primers']["value"]
 
-
+    def convert_dir_format(self, string):
+        if string.lower().startswith("f"):
+            return "F"
+        elif string.lower().startswith("r"):
+            return "R"
+        elif string.lower().startswith("b"):
+            return "B"
+        else:
+            return string        
