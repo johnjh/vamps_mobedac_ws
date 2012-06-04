@@ -104,7 +104,7 @@ def test_by_type(seq_file_type, submission_object, expected_names):
         time.sleep(10)
 
 # should post 3 times, gast twice, and tax table once and 1 data return
-expected_names_123 = ['upload_data_post', 'upload_data_post', 'upload_data_post', 'upload_data_gast', 'upload_data_gast', 'generate_taxonomy_table', 'POST results']
+expected_names_123 = ['upload_data_post', 'upload_data_post', 'upload_data_post', 'upload_data_gast', 'generate_taxonomy_table', 'POST results']
 expected_names = ['upload_data_post', 'upload_data_gast', 'generate_taxonomy_table', 'POST results']
 test_by_type('fasta', submission_data_l123, expected_names_123)
 test_by_type('fasta', submission_data_l1_only, expected_names)
