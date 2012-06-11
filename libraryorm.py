@@ -70,6 +70,8 @@ class LibraryORM(Base, BaseMoBEDAC):
         self.set_attrs_from_json(json_obj, self.LIB_INSERT_LEN)
 
         self.set_attrs_from_json(json_obj, self.SAMPLE)
+        print type(json_obj[self.SEQUENCESET_ID_ARRAY])
+        mobedac_logger.info("LLL: " + type(json_obj[self.SEQUENCESET_ID_ARRAY]))
         self.sequence_set_ids = ",".join(json_obj[self.SEQUENCESET_ID_ARRAY])  # just keep this as a string everywhere until being used
         mobedac_logger.info("library has sequence set ids: " + self.sequence_set_ids)
         # now put the objects into the real child collection
