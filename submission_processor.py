@@ -686,7 +686,10 @@ class Submission_Processor (threading.Thread):
             clean_seq_file_handle = open(clean_seq_file_name, 'w')
             generate_quality_file = (file_type != 'fasta')
             if generate_quality_file:
-                quality_file_handle = open(file_type + ".qual", 'w')
+#                processing_dir = self.get_submission_processing_dir(submission)
+                file_full_name = processing_dir + "/" + file_type + ".qual"
+                quality_file_handle = open(file_full_name, 'w')
+#                quality_file_handle = open(file_type + ".qual", 'w')
             # use the sff record id rather than trying to parse it with fasta/q
             use_seq_record_id = (file_type == 'sff') 
             self.log_debug("attempting to convert sequence file: " + raw_seq_file_name)
@@ -784,6 +787,7 @@ class Submission_Processor (threading.Thread):
     
     # check with Andy on what he wants for this
     def create_params_file(self, param_file_name, vamps_user, run_key, project_description, dataset_description, project_title):
+        param_file_name
         params_file = open(param_file_name, 'w')
         params_file.write("username=%s\n" % (vamps_user))
         params_file.write("time=%s\n" % ('daytime'))
@@ -797,6 +801,7 @@ class Submission_Processor (threading.Thread):
 
     # generate the run key file...format of this can be found in the Upload section on the VAMPS website
     def write_run_key_file(self, run_key_file_name, key_hash):
+        run_key_file_name
         key_file = open(run_key_file_name, 'w')
         key_line = Template("$key\t$direction\t$region\t$project\t$dataset\n").substitute(key_hash)
         key_file.write(key_line)
@@ -804,6 +809,7 @@ class Submission_Processor (threading.Thread):
         
     # generate the primer file...format of this can be found in the Upload section on the VAMPS website    
     def create_primer_file(self, primer_array, primer_file_name):
+        primer_file_name
         primer_file = open(primer_file_name, 'w')
         p_index = 0
         for primer in primer_array:
@@ -822,9 +828,9 @@ class Submission_Processor (threading.Thread):
             # datagen is a generator object that yields the encoded parameters
             # VAMPS expects 4 or 5 files in this multipart form upload they have the parameter names shown below
             post_params = {
-                         'seqfile' : open(sequence_file_name_prefix + ".fa","r"),
-                         'primfile' : open(primer_file_name,"r"),
-                         'keyfile' :open(run_key_file_name,"r"),
+                         'seqfile'   : open(sequence_file_name_prefix + ".fa","r"),
+                         'primfile'  : open(primer_file_name,"r"),
+                         'keyfile'   : open(run_key_file_name,"r"),
                          'paramfile' : open(param_file_name,"r")
                          }
             # where to send it?
