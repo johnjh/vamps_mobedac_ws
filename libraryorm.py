@@ -70,10 +70,21 @@ class LibraryORM(Base, BaseMoBEDAC):
         self.set_attrs_from_json(json_obj, self.LIB_INSERT_LEN)
 
         self.set_attrs_from_json(json_obj, self.SAMPLE)
-        print type(json_obj[self.SEQUENCESET_ID_ARRAY])
-        mobedac_logger.info("LLL: " + type(json_obj[self.SEQUENCESET_ID_ARRAY]))
-        self.sequence_set_ids = ",".join(json_obj[self.SEQUENCESET_ID_ARRAY])  # just keep this as a string everywhere until being used
+#        stage_name == 'upload'
+        stage_name_list = json_obj[self.SEQUENCESET_ID_ARRAY]
+        sequence_file_names = []
+        sequence_file_names = [x['file_name'] for x in stage_name_list if x['stage_name'] == 'upload']
+
+#        for dict in stage_name_list:
+#            if dict['stage_name'] == 'upload':
+#                stage_name = dict['file_name']
+#                sequence_file_names.append(stage_name)
+
+#        stage_name = json_obj[self.SEQUENCESET_ID_ARRAY]['stage_name']
+#        self.sequence_set_ids = ",".join(json_obj[self.SEQUENCESET_ID_ARRAY])  # just keep this as a string everywhere until being used
+        self.sequence_set_ids = ",".join(sequence_file_names)
         mobedac_logger.info("library has sequence set ids: " + self.sequence_set_ids)
+        print self.sequence_set_ids
         # now put the objects into the real child collection
         # have to do deletes on all existing child sample associations that are not in the new sample set
 #        BaseMoBEDAC.update_child_collection(SequenceSetORM, self.sequencesets, json_obj[LibraryORM.SEQUENCESET_IDS], sess_obj)
