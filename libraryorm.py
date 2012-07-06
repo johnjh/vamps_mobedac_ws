@@ -85,7 +85,7 @@ class LibraryORM(Base, BaseMoBEDAC):
 #        self.sequence_set_ids = ",".join(json_obj[self.SEQUENCESET_ID_ARRAY])  # just keep this as a string everywhere until being used
         self.sequence_set_ids = ",".join(sequence_file_names)
         mobedac_logger.info("library has sequence set ids: " + self.sequence_set_ids)
-        print self.sequence_set_ids
+#        print self.sequence_set_ids
         # now put the objects into the real child collection
         # have to do deletes on all existing child sample associations that are not in the new sample set
 #        BaseMoBEDAC.update_child_collection(SequenceSetORM, self.sequencesets, json_obj[LibraryORM.SEQUENCESET_IDS], sess_obj)
@@ -136,6 +136,7 @@ class LibraryORM(Base, BaseMoBEDAC):
     
     def collect_primers_info(self, primer_info, primer_dir):
         primers = []
+        domain = self.get_domain()
         for i, val in enumerate(primer_info):
             primer = {}
             #fake name:
@@ -143,7 +144,8 @@ class LibraryORM(Base, BaseMoBEDAC):
             primer['direction'] = primer_dir
             primer['sequence']  = val.replace("Z", "Y")
             primer['regions']   = self.get_region()
-            primer['location']  = primer['name']
+            primer['location']  = domain
+#            primer['location']  = primer['name']
             primers.append(primer)
         return primers
                 

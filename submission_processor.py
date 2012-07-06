@@ -366,7 +366,7 @@ class Submission_Processor (threading.Thread):
             for detail in submissiondetail_array:                          
                 status_row = detail.get_VAMPS_submission_status_row(self.sess_obj)
                 if status_row == None:
-                    raise "Error preparing for GAST no vamps_upload_status record found for submission_detail: " + detail.id + " vamps_status_id: " + str(submission.vamps_status_record_id)
+                    raise "Error preparing for GAST no vamps_upload_status record found for submission_detail: " + str(detail.id) + " vamps_status_id: " + str(submission.vamps_status_record_id)
                 if status_row[0] != self.VAMPS_TRIM_SUCCESS:
                     self.log_debug("Can't GAST submissiondetail: " + str(detail.id) + " yet, VAMPS status is: " + status_row[0])
                     return
@@ -775,6 +775,8 @@ class Submission_Processor (threading.Thread):
         key_hash = {"key" : run_key, "direction" : library_obj.get_direction(),
                     "region" : submission_detail.region, "project" : submission_detail.vamps_project_name, "dataset" : submission_detail.vamps_dataset_name}
         run_key_file_name = processing_dir + "run_key.txt"
+        print "run_key_file_name (%s) = processing_dir (%s) + run_key.txt" % (run_key_file_name, processing_dir)
+
         self.write_run_key_file(run_key_file_name, key_hash)
         
         # create the param file
