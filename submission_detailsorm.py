@@ -73,6 +73,8 @@ class SubmissionDetailsORM(Base, BaseMoBEDAC):
         pass
     
     def __repr__(self):
+        print "OOO: <SubmissionDetailsORM('%s','%s', '%s','%s','%s', '%s')>" % (self.id, self.submission_id, self.project_id, self.sample_id, self.library_id, self.sequenceset_id)
+
         return "<SubmissionDetailsORM('%s','%s', '%s','%s','%s', '%s')>" % (self.id, self.submission_id, self.project_id, self.sample_id, self.library_id, self.sequenceset_id)
     
     def get_VAMPS_submission_status_row(self, sess_obj):

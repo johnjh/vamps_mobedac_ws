@@ -601,7 +601,7 @@ class Submission_Processor (threading.Thread):
             processing_dir = self.create_submission_detail_processing_dir(submission, detail)
 
             sequence_set_id = detail.sequenceset_id  
-            print "SSS: sequence_set_id = %s" % (sequence_set_id)    
+            print "SSS: detail = %s, sequence_set_id = %s" % (detail, sequence_set_id)    
             # now get the sequence set as object? or just a file? how?
             try:
                 # first download it
