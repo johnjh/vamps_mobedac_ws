@@ -600,7 +600,7 @@ class Submission_Processor (threading.Thread):
             # lets make a dir for the data for this object  dir:  <root>/submission.id/submission_detail.id/
             processing_dir = self.create_submission_detail_processing_dir(submission, detail)
 
-            sequence_set_id = detail.sequenceset_id      
+            sequence_set_id = detail.sequenceset_id  
             # now get the sequence set as object? or just a file? how?
             try:
                 # first download it
@@ -621,6 +621,7 @@ class Submission_Processor (threading.Thread):
         full_seq_file_download_url = ""
         remote_file_handle = None
         raw_seq_file = None
+
         try:
             # get a connection to the file
             full_seq_file_download_url = "http://" + get_parm("mobedac_host") + get_parm("mobedac_base_path") + "sequenceSet/" + sequence_set_id + "?auth=" + get_parm("mobedac_auth_key")                

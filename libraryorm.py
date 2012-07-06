@@ -99,7 +99,7 @@ class LibraryORM(Base, BaseMoBEDAC):
         self.dump_attr(parts,self.lib_insert_len, self.LIB_INSERT_LEN)
         self.dump_attr(parts,self.sample, self.SAMPLE)
         self.dump_attr(parts,json.loads(self.sequence_set_ids), self.SEQUENCESET_ID_ARRAY)
-
+        print "UUU: self.sequence_set_ids = %s" % self.sequence_set_ids
         result =  ",".join(parts)
         print result
         return result
