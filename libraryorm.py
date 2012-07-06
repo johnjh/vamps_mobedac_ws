@@ -73,8 +73,9 @@ class LibraryORM(Base, BaseMoBEDAC):
 #        stage_name == 'upload'
         stage_name_list = json_obj[self.SEQUENCESET_ID_ARRAY]
         sequence_file_names = []
-        sequence_file_names = [x['file_name'] for x in stage_name_list if x['stage_name'] == 'upload']
+        sequence_file_names = [x['id'] for x in stage_name_list if x['stage_name'] == 'upload']
 
+#        sequence_file_names = [x['file_name'] for x in stage_name_list if x['stage_name'] == 'upload']
 #        for dict in stage_name_list:
 #            if dict['stage_name'] == 'upload':
 #                stage_name = dict['file_name']
