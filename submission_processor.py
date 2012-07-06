@@ -601,6 +601,7 @@ class Submission_Processor (threading.Thread):
             processing_dir = self.create_submission_detail_processing_dir(submission, detail)
 
             sequence_set_id = detail.sequenceset_id  
+            print "SSS: sequence_set_id = %s" % (sequence_set_id)    
             # now get the sequence set as object? or just a file? how?
             try:
                 # first download it
@@ -621,6 +622,7 @@ class Submission_Processor (threading.Thread):
         full_seq_file_download_url = ""
         remote_file_handle = None
         raw_seq_file = None
+        print "SSS1: sequence_set_id = %s" % sequence_set_id    
 
         try:
             # get a connection to the file

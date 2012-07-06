@@ -110,5 +110,5 @@ test_by_type('fasta', submission_data_l123, expected_names_123)
 test_by_type('fasta', submission_data_l1_only, expected_names)
 test_by_type('fastq_small', submission_data_l1_only, expected_names)
 test_by_type('sff_small',submission_data_l1_only, expected_names)
-test_by_type('fastq_large', expected_names)
+test_by_type('fastq_large', submission_data_l1_only, expected_names)
 
