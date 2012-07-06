@@ -35,8 +35,8 @@ class BaseMoBEDAC():
                 conn = httplib.HTTPConnection(get_parm("mobedac_host"))
                 object_path = cls.get_REST_sub_path()
 #                complete_url = get_parm("mobedac_base_path") + object_path + "/" + id + "?auth=" + get_parm("mobedac_auth_key")
-                complete_url = get_parm("mobedac_base_path") + object_path + "/" + id + "?auth=" + get_parm("mobedac_auth_key") + "&template=1"
-
+                complete_url = get_parm("mobedac_base_path") + object_path + "/" + id + "?auth=" + get_parm("mobedac_auth_key")
+                complete_url +=  "&template=1" 
                 conn.request("GET", complete_url)
                 response = conn.getresponse()
                 data = response.read()

@@ -352,7 +352,8 @@ libraries = {
          'lib_type' : 'solo', 
          'lib_insert_len' : 0,
          "sample" : "s1",
-         "sequence_sets" : ["icml2"],
+#         "sequence_sets" : ["icml2"],
+         "sequence_sets" : [{"stage_name":"upload","file_name":"60410.fastq.gz","stage_type":"fastq","id":"mgm4492980.3-050-1","stage_id":"050"},{"stage_name":"upload","file_name":"60410.fna.gz","stage_type":"fna","id":"mgm4492980.3-050-2","stage_id":"050"},{"stage_name":"preprocess","file_name":"100.preprocess.passed.fna.gz","stage_type":"passed","id":"mgm4492980.3-100-1","stage_id":"100"},{"stage_name":"preprocess","file_name":"100.preprocess.removed.fna.gz","stage_type":"removed","id":"mgm4492980.3-100-2","stage_id":"100"},{"stage_name":"dereplication","file_name":"150.dereplication.passed.fna.gz","stage_type":"passed","id":"mgm4492980.3-150-1","stage_id":"150"},{"stage_name":"dereplication","file_name":"150.dereplication.removed.fna.gz","stage_type":"removed","id":"mgm4492980.3-150-2","stage_id":"150"},{"stage_name":"screen","file_name":"299.screen.passed.fna.gz","stage_type":"passed","id":"mgm4492980.3-299-1","stage_id":"299"},{"stage_name":"genecalling","file_name":"350.genecalling.coding.faa.gz","stage_type":"coding","id":"mgm4492980.3-350-1","stage_id":"350"},{"stage_name":"genecalling","file_name":"350.genecalling.coding.fna.gz","stage_type":"coding","id":"mgm4492980.3-350-2","stage_id":"350"},{"stage_name":"search","file_name":"425.search.rna.fna.gz","stage_type":"rna","id":"mgm4492980.3-425-1","stage_id":"425"},{"stage_name":"cluster","file_name":"440.cluster.rna97.fna.gz","stage_type":"rna97","id":"mgm4492980.3-440-1","stage_id":"440"},{"stage_name":"cluster","file_name":"550.cluster.aa90.faa.gz","stage_type":"aa90","id":"mgm4492980.3-550-1","stage_id":"550"}],
          "metadata":
                 {
 # "run_key" : "CTACT",  
@@ -436,7 +437,8 @@ libraries = {
          'lib_type' : 'solo', 
          'lib_insert_len' : 0,
          "sample" : "s1",
-         "sequence_sets" : ["icml3"],
+#         "sequence_sets" : ["icml3"],
+         "sequence_sets" : [{"stage_name":"upload","file_name":"60410.fastq.gz","stage_type":"fastq","id":"mgm4492980.3-050-1","stage_id":"050"},{"stage_name":"upload","file_name":"60410.fna.gz","stage_type":"fna","id":"mgm4492980.3-050-2","stage_id":"050"},{"stage_name":"preprocess","file_name":"100.preprocess.passed.fna.gz","stage_type":"passed","id":"mgm4492980.3-100-1","stage_id":"100"},{"stage_name":"preprocess","file_name":"100.preprocess.removed.fna.gz","stage_type":"removed","id":"mgm4492980.3-100-2","stage_id":"100"},{"stage_name":"dereplication","file_name":"150.dereplication.passed.fna.gz","stage_type":"passed","id":"mgm4492980.3-150-1","stage_id":"150"},{"stage_name":"dereplication","file_name":"150.dereplication.removed.fna.gz","stage_type":"removed","id":"mgm4492980.3-150-2","stage_id":"150"},{"stage_name":"screen","file_name":"299.screen.passed.fna.gz","stage_type":"passed","id":"mgm4492980.3-299-1","stage_id":"299"},{"stage_name":"genecalling","file_name":"350.genecalling.coding.faa.gz","stage_type":"coding","id":"mgm4492980.3-350-1","stage_id":"350"},{"stage_name":"genecalling","file_name":"350.genecalling.coding.fna.gz","stage_type":"coding","id":"mgm4492980.3-350-2","stage_id":"350"},{"stage_name":"search","file_name":"425.search.rna.fna.gz","stage_type":"rna","id":"mgm4492980.3-425-1","stage_id":"425"},{"stage_name":"cluster","file_name":"440.cluster.rna97.fna.gz","stage_type":"rna97","id":"mgm4492980.3-440-1","stage_id":"440"},{"stage_name":"cluster","file_name":"550.cluster.aa90.faa.gz","stage_type":"aa90","id":"mgm4492980.3-550-1","stage_id":"550"}],
          "metadata":
                 {
 # "run_key" : "CTACT",  
