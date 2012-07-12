@@ -145,6 +145,7 @@ class LibraryORM(Base, BaseMoBEDAC):
             primer['sequence']  = val.replace("Z", "Y")
             primer['regions']   = self.get_region()
             primer['location']  = domain
+
 #            primer['location']  = primer['name']
             primers.append(primer)
         return primers

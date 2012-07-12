@@ -820,8 +820,9 @@ class Submission_Processor (threading.Thread):
         for primer in primer_array:
             # force in some defaults...maybe mobedac won't have them
             primer["name"] = primer.get("name", "p_" + str(p_index))
-            primer["location"] = primer.get("location", "p_" + str(p_index))
+#            primer["location"] = primer.get("location", "p_" + str(p_index))
             primer_line = Template("$name\t$direction\t$sequence\t$regions\t$location\n").substitute(primer)
+#            print "PPP primer_line = " % (primer_line)
             primer_file.write(primer_line)
             p_index += 1
         primer_file.close()
