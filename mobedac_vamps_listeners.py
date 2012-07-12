@@ -15,7 +15,7 @@ projects = {'p1' : {'id' : 'p1', 'name': 'ICM_PRJ', 'about': 'This is projectG u
 "metadata":
     {     
 #     "project_code" : "JJH_ICM",
-     "project_code":{"unit":"","required":"0","value":"JG_OHA","aliases":["vamps_id"],"type":"text","definition":"Project identifier in the VAMPS system","mixs":"0"},
+     "vamps_id":{"unit":"","required":"0","value":"JG_OHA","aliases":["vamps_id"],"type":"text","definition":"Project identifier in the VAMPS system","mixs":"0"},
     "project_funding":"European",
     "firstname":" - ",
     "PI_organization":"Division de Microbiologa, Universidad Miguel Hernndez",

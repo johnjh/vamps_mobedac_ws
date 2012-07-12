@@ -145,8 +145,8 @@ class SubmissionORM(Base, BaseMoBEDAC):
                 raise SubmissionException("The library: " + lib_id + " is missing a domain")
             if not(curr_library.get_region()):
                 raise SubmissionException("The library: " + lib_id + " is missing a region")
-            #if not(curr_project.get_metadata_json()['project_code']):
-                raise SubmissionException("The project: " + lib_id + " is missing a project_code")
+            #if not(curr_project.get_metadata_json()['vamps_id']):
+                raise SubmissionException("The project: " + lib_id + " is missing a vamps_id")
             #check the primers
             primers = curr_library.get_primers()
             # if only 1 primer and it isn't a BOTH direction then complain
@@ -167,7 +167,7 @@ class SubmissionORM(Base, BaseMoBEDAC):
             curr_library_domain = curr_library.get_domain()
             curr_library_region = curr_library.get_region()
             domain_region_suffix = '_' + curr_library_domain[0].upper() + curr_library_region.lower()
-            vamps_project_name = curr_project.get_metadata_json()['project_code']['value'] + domain_region_suffix
+            vamps_project_name = curr_project.get_metadata_json()['vamps_id']['value'] + domain_region_suffix
             
 #                    self.set_attrs_from_json(json_obj, self.SAMPLE)
 ##        stage_name == 'upload'
