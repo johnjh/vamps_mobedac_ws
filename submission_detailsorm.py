@@ -8,8 +8,9 @@ from sqlalchemy.orm import relationship, backref
 from dec_base import Base
 from libraryorm import LibraryORM
 from rest_log import mobedac_logger
-from dbconn import vampsSession, test_engine
+from dbconn import *
 from initparms import environment
+#from dbconn import vampsSession, test_engine
 
 
 class SubmissionDetailsORM(Base, BaseMoBEDAC):

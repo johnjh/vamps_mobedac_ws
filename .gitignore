@@ -8,6 +8,7 @@ config/*
 .project
 mycfg.py
 *.qual
+.settings/*.prefs
 
 # Packages #
 ############
