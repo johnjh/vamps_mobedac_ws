@@ -280,12 +280,12 @@ libraries = {
 # "primer_1_name" : "1048R", "primer_1_direction" : "R", "primer_1_sequence" : "GWGGTRCATGGCY?GY?CG", "primer_1_region" : "v6", "primer_1_location" : "1048R" ,
 # "primer_2_name" : "958F", "primer_2_direction" : "F", "primer_2_sequence" : "AATTGGA.?TCAACGCC.G", "primer_2_region" : "v6", "primer_2_location" : "958F",
 #                "library1":"European",
-
         "forward_barcodes": {"value" : "GCTTGCTT"}, #run_key
         "target_subfragment": {"value" : "V2V3"},   #dna_region
         "seq_chem": {"value" : "GS FLX Titanium"},
         "seq_meth": {"value" : "454"},
         "seq_center": {"value" : "engencore"},
+#        "domain":{"unit":"","required":"0","value":"Bacteria","type":"select","definition":"Archaea , Bacteria , Eukarya - requiered by VAMPS","mixs":"0"},
         "domain": {"value" : "Bacteria"},           #domain
         "target_gene": {"value" : "16S rRNA"},
         "metagenome_name": {"value" : "M4"},

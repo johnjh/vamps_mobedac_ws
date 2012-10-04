@@ -772,45 +772,85 @@ class Submission_Processor (threading.Thread):
         # now create the primer file
         # first get the owning Library
         primers = library_obj.get_primers()
-        primer_file_name = processing_dir + "primers.txt"
+        primer_file_name = processing_dir + "primers.csv"
         self.create_primer_file(primers, primer_file_name)
         
         # now create the key file
         run_key = library_obj.get_run_key()
-        key_hash = {"key" : run_key, "direction" : library_obj.get_direction(),
-                    "region" : submission_detail.region, "project" : submission_detail.vamps_project_name, "dataset" : submission_detail.vamps_dataset_name}
-        run_key_file_name = processing_dir + "run_key.txt"
-        print "run_key_file_name (%s) = processing_dir (%s) + run_key.txt" % (run_key_file_name, processing_dir)
+        domain  = library_obj.get_domain()
+        region  = submission_detail.region
+        project_title = project.name
+        project_description = project.description[0:255]
+        dataset_description = "Dataset description test" 
+        minLength = 50
+        environmental_source_id = 120
+        
+        metadata_hash = {"key" : run_key, "direction" : library_obj.get_direction(),
+                    "region" : submission_detail.region, "project" : submission_detail.vamps_project_name, 
+                    "dataset" : submission_detail.vamps_dataset_name, "domain": domain, 
+                    "project_title" : project_title, "project_description" : project_description, "dataset_description" : dataset_description, "environmental_source_id": environmental_source_id
+                    }
+        metadata_file_name = processing_dir + "metadata.csv"
+        print "metadata_file_name (%s) = processing_dir (%s) + metadata.csv" % (metadata_file_name, processing_dir)
 
-        self.write_run_key_file(run_key_file_name, key_hash)
+        self.write_metadatata_file(metadata_file_name, metadata_hash)
         
         # create the param file
-        param_file_name = processing_dir + "params.prm"
-        self.create_params_file(param_file_name, submission.user, run_key, project.description[0:255], "Dataset description test", project.name)
+#        param_file_name = processing_dir + "params.prm"
+        param_file_name = processing_dir + "parameters.txt"
+        self.create_params_file(param_file_name, submission.user, run_key, project_description, dataset_description, project_title, domain, region, minLength)
         
         # now send the files on up
-        vamps_status_record_id = self.upload_to_vamps(submission_detail, processing_dir + Submission_Processor.MOBEDAC_SEQUENCE_FILE_NAME_PREFIX, primer_file_name, run_key_file_name, param_file_name)
+        vamps_status_record_id = self.upload_to_vamps(submission_detail, processing_dir + Submission_Processor.MOBEDAC_SEQUENCE_FILE_NAME_PREFIX, primer_file_name, metadata_file_name, param_file_name)
         return vamps_status_record_id
     
     # check with Andy on what he wants for this
-    def create_params_file(self, param_file_name, vamps_user, run_key, project_description, dataset_description, project_title):
+    def create_params_file(self, param_file_name, vamps_user, run_key, project_description, dataset_description, project_title, domain, region, minLength):
         param_file_name
         params_file = open(param_file_name, 'w')
+        param_text = """# comments must have a hash on the first line
+# blank lines are okay.
+\n
+# key, value pairs separated by '=' spaces okay
+# remember that uploads can be multiple projects with multiple datasets
+# no other '=' signs allowed
+"""
+        params_file.write(param_text)
         params_file.write("username=%s\n" % (vamps_user))
         params_file.write("time=%s\n" % ('daytime'))
         params_file.write("platform=%s\n" % ('454'))  # need to get this somewhere
-        params_file.write("%s:description=%s\n" % (run_key,dataset_description))
-        params_file.write("env_source=%s\n" % ('marine'))  # neeed to get this from somewhere
-        params_file.write("project_description=%s\n" % (project_description))
-        params_file.write("project_title=%s\n" % (project_title))
+        params_file.write("minLength=%s\n" % (minLength))  # need to get this somewhere
+        param_text ="# required - but leave empty for no limit\n"
+        params_file.write(param_text)
+        params_file.write("maxLength=%s\n" % (''))  # need to get this somewhere
+        params_file.write("requireDistal=%s\n" % ('1'))  # need to get this somewhere
+        param_text = "\n# these seqs are trimmed or raw?\n"
+        params_file.write(param_text)
+        params_file.write("uploadType=%s\n" % ('raw'))  # need to get this somewhere
+        param_text = "\n# for now this will be fasta\n# but in the future: fastq, sff, compressess and so on\n"
+        params_file.write(param_text)
+        params_file.write("sequence_file_type=%s\n" % ('fasta_clean'))  # need to get this somewhere
+        params_file.write("tax_classifier=%s\n" % ('rdp'))  # need to get this somewhere
+        param_text = """\n# GAST
+# for database selection
+# These are also in the metadata file on each line
+# but these are used exclusively for GASTing mobedac
+"""
+        params_file.write(param_text)
+        params_file.write("dna_region=%s\n" % (region))  # need to get this somewhere
+        params_file.write("domain=%s\n" % (domain))  # need to get this somewhere
+
         params_file.flush()
         params_file.close()
 
-    # generate the run key file...format of this can be found in the Upload section on the VAMPS website
-    def write_run_key_file(self, run_key_file_name, key_hash):
-        run_key_file_name
-        key_file = open(run_key_file_name, 'w')
-        key_line = Template("$key\t$direction\t$region\t$project\t$dataset\n").substitute(key_hash)
+    # generate the metadata file...format of this can be found in the Upload section on the VAMPS website
+#    runkey,project,dataset,dna_region,taxonomic_domain,sequence_direction,project_title,project_description,dataset_description,environmental_source_id
+    def write_metadatata_file(self, metadata_file_name, metadata_hash):
+        metadata_file_name
+        key_file = open(metadata_file_name, 'w')
+        header_line = "runkey,project,dataset,dna_region,taxonomic_domain,sequence_direction,project_title,project_description,dataset_description,environmental_source_id\n"
+        key_file.write(header_line)
+        key_line = Template("$key,$project,$dataset,$region,$domain,$direction,$project_title,$project_description,$dataset_description,$environmental_source_id\n").substitute(metadata_hash)
         key_file.write(key_line)
         key_file.close()
         
@@ -823,13 +863,15 @@ class Submission_Processor (threading.Thread):
             # force in some defaults...maybe mobedac won't have them
             primer["name"] = primer.get("name", "p_" + str(p_index))
 #            primer["location"] = primer.get("location", "p_" + str(p_index))
-            primer_line = Template("$name\t$direction\t$sequence\t$regions\t$location\n").substitute(primer)
+#            old:
+#            primer_line = Template("$name\t$direction\t$sequence\t$regions\t$location\n").substitute(primer)
+            primer_line = Template("$name,$direction,$sequence\n").substitute(primer)
 #            print "PPP primer_line = " % (primer_line)
             primer_file.write(primer_line)
             p_index += 1
         primer_file.close()
             
-    def upload_to_vamps(self, submission_detail, sequence_file_name_prefix, primer_file_name, run_key_file_name, param_file_name):
+    def upload_to_vamps(self, submission_detail, sequence_file_name_prefix, primer_file_name, metadata_file_name, param_file_name):
         response = None
         try:
             # headers contains the necessary Content-Type and Content-Length
@@ -838,7 +880,7 @@ class Submission_Processor (threading.Thread):
             post_params = {
                          'seqfile'   : open(sequence_file_name_prefix + ".fa","r"),
                          'primfile'  : open(primer_file_name,"r"),
-                         'keyfile'   : open(run_key_file_name,"r"),
+                         'keyfile'   : open(metadata_file_name,"r"),
                          'paramfile' : open(param_file_name,"r")
                          }
             # where to send it?
