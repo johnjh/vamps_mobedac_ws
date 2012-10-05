@@ -367,7 +367,8 @@ class Submission_Processor (threading.Thread):
                 status_row = detail.get_VAMPS_submission_status_row(self.sess_obj)
                 print "PPP status_row = %s" % (status_row)
                 if status_row == None:
-                    raise "Error preparing for GAST no vamps_upload_status record found for submission_detail: %s vamps_status_id: %s" % (str(detail.id), str(detail.vamps_status_record_id))
+                    print "Error preparing for GAST no vamps_upload_status record found for submission_detail: %s vamps_status_id: %s" % (str(detail.id), str(detail.vamps_status_record_id))
+                    raise
 #                    raise "Error preparing for GAST no vamps_upload_status record found for submission_detail: " + str(detail.id) + " vamps_status_id: " + str(submission.vamps_status_record_id)
                 if status_row[0] != self.VAMPS_TRIM_SUCCESS:
                     self.log_debug("Can't GAST submissiondetail: %s  yet, VAMPS status is: %s" % (str(detail.id), status_row[0]))
