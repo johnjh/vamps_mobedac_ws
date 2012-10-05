@@ -206,4 +206,4 @@ class SubmissionORM(Base, BaseMoBEDAC):
             sess_obj.commit()
             mobedac_logger.info("committing submission object got id: " + str(self.id));
         except Exception as e:
-            raise SubmissionException("There was an error during submission: " + e.value)
+            raise SubmissionException("There was an error during submission: " + e)

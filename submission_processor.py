@@ -365,12 +365,12 @@ class Submission_Processor (threading.Thread):
             details_by_project_name = {}
             for detail in submissiondetail_array:                          
                 status_row = detail.get_VAMPS_submission_status_row(self.sess_obj)
-                print "PPP status_row = " % (status_row)
+                print "PPP status_row = %s" % (status_row)
                 if status_row == None:
-                    raise "Error preparing for GAST no vamps_upload_status record found for submission_detail: " + str(detail.id) + " vamps_status_id: " + str(detail.vamps_status_record_id)
+                    raise "Error preparing for GAST no vamps_upload_status record found for submission_detail: %s vamps_status_id: %s" % (str(detail.id), str(detail.vamps_status_record_id))
 #                    raise "Error preparing for GAST no vamps_upload_status record found for submission_detail: " + str(detail.id) + " vamps_status_id: " + str(submission.vamps_status_record_id)
                 if status_row[0] != self.VAMPS_TRIM_SUCCESS:
-                    self.log_debug("Can't GAST submissiondetail: " + str(detail.id) + " yet, VAMPS status is: " + status_row[0])
+                    self.log_debug("Can't GAST submissiondetail: %s  yet, VAMPS status is: %s" % (str(detail.id), status_row[0]))
                     return
                 #gather them by project name
                 self.accumulate_by_key(details_by_project_name, detail.vamps_project_name, detail)
@@ -783,6 +783,10 @@ class Submission_Processor (threading.Thread):
         project_description = project.description[0:255]
         dataset_description = "Dataset description test" 
         minLength = 50
+        """
+        use "env_package" from "Retrieving remote sample: mgs62788
+        json string for object id: mgs62788 json:" 
+        """
         environmental_source_id = 120
         
         metadata_hash = {"key" : run_key, "direction" : library_obj.get_direction(),
