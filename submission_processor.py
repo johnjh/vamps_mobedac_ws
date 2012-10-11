@@ -791,8 +791,8 @@ class Submission_Processor (threading.Thread):
         environmental_source_id = 120
         
         metadata_hash = {"key" : run_key, "direction" : library_obj.get_direction(),
-                    "region" : submission_detail.region, "project" : submission_detail.vamps_project_name, 
-                    "dataset" : submission_detail.vamps_dataset_name, "domain": domain, 
+                    "project" : submission_detail.vamps_project_name, 
+                    "dataset" : submission_detail.vamps_dataset_name, 
                     "project_title" : project_title, "project_description" : project_description, "dataset_description" : dataset_description, "environmental_source_id": environmental_source_id
                     }
         metadata_file_name = processing_dir + "metadata.csv"
@@ -853,9 +853,9 @@ class Submission_Processor (threading.Thread):
     def write_metadatata_file(self, metadata_file_name, metadata_hash):
         metadata_file_name
         key_file = open(metadata_file_name, 'w')
-        header_line = "runkey,project,dataset,dna_region,taxonomic_domain,sequence_direction,project_title,project_description,dataset_description,environmental_source_id\n"
+        header_line = "runkey,project,dataset,sequence_direction,project_title,project_description,dataset_description,environmental_source_id\n"
         key_file.write(header_line)
-        key_line = Template("$key,$project,$dataset,$region,$domain,$direction,$project_title,$project_description,$dataset_description,$environmental_source_id\n").substitute(metadata_hash)
+        key_line = Template("$key,$project,$dataset,$direction,$project_title,$project_description,$dataset_description,$environmental_source_id\n").substitute(metadata_hash)
         key_file.write(key_line)
         key_file.close()
         
