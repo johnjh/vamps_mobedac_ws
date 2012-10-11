@@ -589,7 +589,7 @@ class VampsListener():
     # this method pretends to be the URL that would be called by our api on the VAMPS server
     # for upload of data with a qual file
     @cherrypy.expose
-    def upload_data_post_with_qual_file(self, seqfile, primfile, keyfile, paramfile, qualfile):
+    def upload_data_post_with_qual_file(self, seqfile, primfile, metafile, paramfile, qualfile):
         global requests_array
         requests_array.append("upload_data_post")
         # create the row in VAMPS db
@@ -604,7 +604,7 @@ class VampsListener():
     # this method pretends to be the URL that would be called by our api on the VAMPS server
     # for upload of data without a qual file
     @cherrypy.expose
-    def upload_data_post(self, seqfile, primfile, keyfile, paramfile):
+    def upload_data_post(self, seqfile, primfile, metafile, paramfile):
         global requests_array
         requests_array.append("upload_data_post")
         # create the row in VAMPS db

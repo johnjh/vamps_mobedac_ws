@@ -885,7 +885,7 @@ class Submission_Processor (threading.Thread):
             post_params = {
                          'seqfile'   : open(sequence_file_name_prefix + ".fa","r"),
                          'primfile'  : open(primer_file_name,"r"),
-                         'keyfile'   : open(metadata_file_name,"r"),
+                         'metafile'   : open(metadata_file_name,"r"),
                          'paramfile' : open(param_file_name,"r")
                          }
             # where to send it?
