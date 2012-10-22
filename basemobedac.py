@@ -37,8 +37,8 @@ class BaseMoBEDAC():
 #                complete_url = get_parm("mobedac_base_path") + object_path + "/" + id + "?auth=" + get_parm("mobedac_auth_key")
 #                complete_url = get_parm("mobedac_base_path") + object_path + "/" + id + "?auth=" + get_parm("mobedac_auth_     38 key")
                 complete_url = get_parm("mobedac_base_path") + "r/" + object_path + "/" + id
-                if (conn.host == "localhost"):
-                    complete_url = get_parm("mobedac_base_path") + object_path + "/" + id + "?auth=" + get_parm("mobedac_auth_key")                                    
+                if (conn.host == "localhost" or conn.host == "api.metagenomics.anl.gov"):
+                    complete_url = get_parm("mobedac_base_path") + object_path + "/" + id + "?auth=" + get_parm("mobedac_auth_key")
                 complete_url +=  "&template=1" 
                 conn.request("GET", complete_url)
                 response = conn.getresponse()
