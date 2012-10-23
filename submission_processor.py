@@ -904,7 +904,8 @@ class Submission_Processor (threading.Thread):
 #        params_file.write("sequence_file_type=%s\n" % ('fastq'))  # need to get this somewhere
         param_text = "\n# COMPRESSION: gzip, none ()\n"
         params_file.write(param_text)
-        params_file.write("compression=%s\n" % ('gzip'))  # need to get this somewhere
+        "TODO: uncompress on VAMPS or before?"
+#        params_file.write("compression=%s\n" % ('gzip'))  # need to get this somewhere
         params_file.write("tax_classifier=%s\n" % ('gast'))  # need to get this somewhere
         param_text = """\n# GAST
 # for database selection
