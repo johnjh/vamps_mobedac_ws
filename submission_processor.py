@@ -896,11 +896,12 @@ class Submission_Processor (threading.Thread):
         params_file.write("uploadType=%s\n" % ('raw'))  # need to get this somewhere
         param_text = "\n# for now this will be fasta\n# but in the future: fastq, sff, compressess and so on\n"
         params_file.write(param_text)
-#        params_file.write("sequence_file_type=%s\n" % ('fasta_clean'))  # need to get this somewhere
+        params_file.write("sequence_file_type=%s\n" % ('fasta_clean'))  # need to get this somewhere
 #        params_file.write("tax_classifier=%s\n" % ('rdp'))  # need to get this somewhere
         param_text = "# SEQUENCE FILE: fasta, fastq, sff\n"
         params_file.write(param_text)
-        params_file.write("sequence_file_type=%s\n" % ('fastq'))  # need to get this somewhere
+        "TODO: fasta_clean or fastq?"
+#        params_file.write("sequence_file_type=%s\n" % ('fastq'))  # need to get this somewhere
         param_text = "\n# COMPRESSION: gzip, none ()\n"
         params_file.write(param_text)
         params_file.write("compression=%s\n" % ('gzip'))  # need to get this somewhere
