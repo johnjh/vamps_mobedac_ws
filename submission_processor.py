@@ -720,6 +720,7 @@ class Submission_Processor (threading.Thread):
             raw_seq_file_name = self.get_raw_sequence_file_name(file_type, processing_dir)
             if (compression == "gzip"):
                 self.gunzip(raw_seq_file_name)    
+            print "GGG2: %s gunzipped.\n" % (raw_seq_file_name)        
             binary_flag = "b" if file_type == "sff" else ""
             raw_file_handle = open(raw_seq_file_name, "r" + binary_flag)
             # now open/create the clean file
@@ -783,7 +784,8 @@ class Submission_Processor (threading.Thread):
         r_file.close()
         os.unlink(file_name) # Yes this one too.
         os.rename(temp_file_name, file_name)
-        sys.stdout.write("%s gunzipped.\n" % (file_name))        
+        sys.stdout.write("GGG: %s gunzipped.\n" % (file_name))        
+        print "GGG1: %s gunzipped.\n" % (file_name)        
     
     # upload each detail object (a library=sequence file) at a time to VAMPS
     def vamps_upload(self, submission, submissiondetail_array):
