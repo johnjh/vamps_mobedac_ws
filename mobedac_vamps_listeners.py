@@ -558,7 +558,7 @@ sequencefiles_by_types = {
                             'format' : "sff"}
                  },
                 "fastq_small" : 
-                {'icml1' : {'name' : work_path_local+'/src/icml1.fastq_small',
+                {'icml1' : {'name' : work_path_local+'/src/icml1.fastq_small.gz',
                             'format' : "fastq"}
                  },
                 "fastq_large" : 
