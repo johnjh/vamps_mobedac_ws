@@ -43,7 +43,7 @@ class Submission_Processor (threading.Thread):
         # these are the 2 important dictionary maps that map an incoming MOBEDAC metadata field/value into the correct table/column in our db
         self.sample_related_metadata_map_json = samplemetadatamap
         self.sequence_related_metadata_map_json = sequencemetadatamap
-        
+        self.compressed = False
         threading.Thread.__init__(self)
      
     # populates a hash (dictionary) and the values are lists
@@ -610,7 +610,7 @@ class Submission_Processor (threading.Thread):
                 # first download it
                 file_type = self.download_raw_sequence_file(detail, sequence_set_id, processing_dir)
                 # now convert it from raw format to clean fasta for VAMPS
-#                self.convert_sequence_file(file_type, processing_dir)
+                self.convert_sequence_file(file_type, processing_dir)
             except:
                 self.log_to_submission_detail(detail, "Error retrieving sequence set: " + detail.sequenceset_id)
                 return        
@@ -647,30 +647,8 @@ class Submission_Processor (threading.Thread):
             # if we didn't find a type we know then default it
             if file_type not in valid_file_types:
                 file_type = "fasta"
-
-
-            "TODO: remove hardcoded value, send with params"
-#            compression = "gzip"
-            """
-            if self.runobj.compressed:
-            import gzip
-            try:
-                logger.info( "illumina_filtering: opening compressed file: "+in_filepath)
-                fp = gzip.open( in_filepath )
-            except:
-                logger.info( "illumina_filtering: opening uncompressed file: "+in_filepath)
-                fp = open( in_filepath )            
-            
-            if (compression == "gzip"):
-                import gzip
-                try:
- 
-                               
-            """
-
             # now write out the raw file
             raw_seq_file_name = self.get_raw_sequence_file_name(file_type, processing_dir)
-            
             # this could be an sff file? which would be binary
             binary_flag = "b" if file_type == "sff" else ""
             raw_seq_file = open(raw_seq_file_name, "w" + binary_flag)
@@ -682,7 +660,6 @@ class Submission_Processor (threading.Thread):
                 else:
                     break
             self.log_debug("successfully downloaded seq file with url: " + full_seq_file_download_url)
-            "TODO: add file_name and type and compressed into sequcence set parcing"
             return file_type
         except:
             self.log_to_submission_detail(detail, "Error during retrieving of sequence data from MoBEDAC")
@@ -692,24 +669,21 @@ class Submission_Processor (threading.Thread):
                 remote_file_handle.close()
             if raw_seq_file != None:
                 raw_seq_file.close()
+            self.compressed = self.is_compressed(raw_seq_file_name)
                 
+    def is_compressed(self, raw_seq_file_name):
+        import magic
+        res = magic.from_file(raw_seq_file_name)
+        print "magic res = %s\n" % res
+        #magic res = gzip compressed data, was "icml1.fastq_small", from Unix, last modified: Thu May 24 15:31:54 2012
+        if res.startswith("gzip"):
+            return True
+
     def get_raw_sequence_file_name(self, file_type, processing_dir):
-        sequence_file_data = LibraryORM.sequence_file_data
-        sequence_file_name = [x['file_name'] for x in sequence_file_data if x['file_id'] == LibraryORM.sequence_set_ids] 
-        return os.path.join(processing_dir, sequence_file_name)
-                
-    def get_raw_sequence_file_name_old(self, file_type, processing_dir):
         return self.get_sequence_file_base_name(file_type, processing_dir) + "." + file_type
 
     def get_sequence_file_base_name(self, file_type, processing_dir):
         return os.path.join(processing_dir, Submission_Processor.MOBEDAC_SEQUENCE_FILE_NAME_PREFIX)
-
-#    def get_compression_by_extension(self):
-#        sequence_file_data = LibraryORM.sequence_file_data
-
-    def get_compression_by_extension(self):
-        sequence_file_data = LibraryORM.sequence_file_data
-
 
     # VAMPS wants a fa file in 'clean' format
     # convert from raw format to create clean file and possibly the quality file too
@@ -717,25 +691,9 @@ class Submission_Processor (threading.Thread):
         raw_file_handle = None
         clean_seq_file_handle = None
         quality_file_handle = None
-        "TODO: remove hardcoded value, send with params"
-#        compression = "gzip"
-        """
-        if self.runobj.compressed:
-        import gzip
-        try:
-            logger.info( "illumina_filtering: opening compressed file: "+in_filepath)
-            fp = gzip.open( in_filepath )
-        except:
-            logger.info( "illumina_filtering: opening uncompressed file: "+in_filepath)
-            fp = open( in_filepath )            
-        
-        """
         try:
             # open the raw file
             raw_seq_file_name = self.get_raw_sequence_file_name(file_type, processing_dir)
-            if (compression == "gzip"):
-                self.gunzip(raw_seq_file_name)    
-            print "GGG2: %s gunzipped.\n" % (raw_seq_file_name)        
             binary_flag = "b" if file_type == "sff" else ""
             raw_file_handle = open(raw_seq_file_name, "r" + binary_flag)
             # now open/create the clean file
@@ -748,7 +706,6 @@ class Submission_Processor (threading.Thread):
                 quality_file_handle = open(file_full_name, 'w')
 #                quality_file_handle = open(file_type + ".qual", 'w')
             # use the sff record id rather than trying to parse it with fasta/q
-                print "QQQ1: generate_quality_file\n"       
             use_seq_record_id = (file_type == 'sff') 
             self.log_debug("attempting to convert sequence file: " + raw_seq_file_name)
             self.log_debug("attempting to convert type: " + file_type)
@@ -776,32 +733,6 @@ class Submission_Processor (threading.Thread):
                 clean_seq_file_handle.close()
             if quality_file_handle != None:
                 quality_file_handle.close()
-                
-    def ungzip_file(self, raw_seq_file_name):
-        import gzip
-        f_gz = gzip.open(raw_seq_file_name, 'rb')
-        file_content = f_gz.read()
-        f_gz.close()
-        temp_file_name = raw_seq_file_name + ".tmp"
-        f = open(temp_file_name, 'w')
-        f.write(file_content)        
-        f.close()
-        
-    def gunzip(self, file_name):
-        '''Gunzip the given file and then remove the file.'''
-        import gzip, sys
-#        , string
-        r_file = gzip.GzipFile(file_name, 'r')
-#        write_file = string.rstrip(file_name, '.gz')
-        temp_file_name = file_name + ".tmp"
-        w_file = open(temp_file_name, 'w')
-        w_file.write(r_file.read())
-        w_file.close()
-        r_file.close()
-        os.unlink(file_name) # Yes this one too.
-        os.rename(temp_file_name, file_name)
-        sys.stdout.write("GGG: %s gunzipped.\n" % (file_name))        
-        print "GGG1: %s gunzipped.\n" % (file_name)        
     
     # upload each detail object (a library=sequence file) at a time to VAMPS
     def vamps_upload(self, submission, submissiondetail_array):
@@ -881,15 +812,14 @@ class Submission_Processor (threading.Thread):
         # create the param file
 #        param_file_name = processing_dir + "params.prm"
         param_file_name = processing_dir + "parameters.txt"
-        platform = library_obj.get_platform()
-        self.create_params_file(param_file_name, submission.user, run_key, project_description, dataset_description, project_title, domain, region, minLength, platform)
+        self.create_params_file(param_file_name, submission.user, run_key, project_description, dataset_description, project_title, domain, region, minLength)
         
         # now send the files on up
         vamps_status_record_id = self.upload_to_vamps(submission_detail, processing_dir + Submission_Processor.MOBEDAC_SEQUENCE_FILE_NAME_PREFIX, primer_file_name, metadata_file_name, param_file_name)
         return vamps_status_record_id
     
     # check with Andy on what he wants for this
-    def create_params_file(self, param_file_name, vamps_user, run_key, project_description, dataset_description, project_title, domain, region, minLength, platform):
+    def create_params_file(self, param_file_name, vamps_user, run_key, project_description, dataset_description, project_title, domain, region, minLength):
         import datetime
 #        t = datetime.time(1, 2, 3)
 #        print 't :', t
@@ -919,7 +849,7 @@ class Submission_Processor (threading.Thread):
 # REQUIRED: platform (454, illumina, ion_torrent)
 """
         params_file.write(param_text)                       
-        params_file.write("platform=%s\n\n" % (platform))  # '454' need to get this somewhere
+        params_file.write("platform=%s\n\n" % ('454'))  # need to get this somewhere
         
         params_file.write("min_length=%s\n" % (minLength))  # need to get this somewhere
         param_text ="\n# required - but leave empty for no limit\n"
@@ -942,7 +872,11 @@ quality_file=
         params_file.write(param_text)                
         param_text = "\n# COMPRESSION: gzip, or leave empty for none\n"
         params_file.write(param_text)
-        params_file.write("compression=%s\n" % ('gzip'))  # need to get this somewhere
+        compr = "" 
+        if self.compressed:
+            compr = "gzip" 
+
+        params_file.write("compression=%s\n" % (compr))  # need to get this somewhere
 
         param_text = "\n# TAXONOMY CLASSIFICATION\n# currently not used\n"
         params_file.write(param_text)        
@@ -960,8 +894,6 @@ quality_file=
         params_file.flush()
         params_file.close()
 
-    # generate the metadata file...format of this can be found in the Upload section on the VAMPS website
-#    runkey,project,dataset,dna_region,taxonomic_domain,sequence_direction,project_title,project_description,dataset_description,environmental_source_id
     def write_metadatata_file(self, metadata_file_name, metadata_hash):
         metadata_file_name
         key_file = open(metadata_file_name, 'w')
@@ -983,7 +915,6 @@ quality_file=
 #            old:
 #            primer_line = Template("$name\t$direction\t$sequence\t$regions\t$location\n").substitute(primer)
             primer_line = Template("$name,$direction,$sequence\n").substitute(primer)
-#            print "PPP primer_line = " % (primer_line)
             primer_file.write(primer_line)
             p_index += 1
         primer_file.close()

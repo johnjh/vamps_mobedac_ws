@@ -41,7 +41,6 @@ class LibraryORM(Base, BaseMoBEDAC):
     domain = Column(String(32))
     sequence_set_ids = Column(String(512))
     sample = ""
-    sequence_file_data = []
     
     @classmethod
     def get_REST_sub_path(cls):
@@ -73,8 +72,18 @@ class LibraryORM(Base, BaseMoBEDAC):
         self.set_attrs_from_json(json_obj, self.SAMPLE)
 #        stage_name == 'upload'
         stage_name_list = json_obj[self.SEQUENCESET_ID_ARRAY]
-        self.get_sequence_set_ids(stage_name_list) 
-        self.get_sequence_set_data(stage_name_list) 
+        sequence_file_names = []
+        sequence_file_names = [x['id'] for x in stage_name_list if x['stage_name'] == 'upload']
+
+#        sequence_file_names = [x['file_name'] for x in stage_name_list if x['stage_name'] == 'upload']
+#        for dict in stage_name_list:
+#            if dict['stage_name'] == 'upload':
+#                stage_name = dict['file_name']
+#                sequence_file_names.append(stage_name)
+
+#        stage_name = json_obj[self.SEQUENCESET_ID_ARRAY]['stage_name']
+#        self.sequence_set_ids = ",".join(json_obj[self.SEQUENCESET_ID_ARRAY])  # just keep this as a string everywhere until being used
+        self.sequence_set_ids = ",".join(sequence_file_names)
         mobedac_logger.info("library has sequence set ids: " + self.sequence_set_ids)
 #        print self.sequence_set_ids
         # now put the objects into the real child collection
@@ -97,45 +106,11 @@ class LibraryORM(Base, BaseMoBEDAC):
     
     def get_sequence_set_id_array(self):
         return self.sequence_set_ids.split(",")
-
-    def get_sequence_set_ids(self, stage_name_list):
-        sequence_file_names = []
-        sequence_file_names = [x['id'] for x in stage_name_list if x['stage_name'] == 'upload']
-#        sequence_file_names_or = []
-#        sequence_file_names_or = [x['file_name'] for x in stage_name_list if x['stage_name'] == 'upload']
-
-#        sequence_file_names = [x['file_name'] for x in stage_name_list if x['stage_name'] == 'upload']
-#        for dict in stage_name_list:
-#            if dict['stage_name'] == 'upload':
-#                stage_name = dict['file_name']
-#                sequence_file_names.append(stage_name)
-
-#        stage_name = json_obj[self.SEQUENCESET_ID_ARRAY]['stage_name']
-#        self.sequence_set_ids = ",".join(json_obj[self.SEQUENCESET_ID_ARRAY])  # just keep this as a string everywhere until being used
-        self.sequence_set_ids = ",".join(sequence_file_names)
-        return self
-                 
-    def get_sequence_set_data(self, stage_name_list):
-        sequence_file_data_dict = {}
-        self.sequence_file_data = []        
-        for dict in stage_name_list:
-            if dict['stage_name'] == 'upload':
-                sequence_file_data_dict['file_name'] = dict['file_name']
-                sequence_file_data_dict['file_id']   = dict['id']
-                sequence_file_data_dict['file_type'] = dict['stage_type']
-#        sequence_file_names_or = [x['file_name'] for x in stage_name_list if x['stage_name'] == 'upload']
-            self.sequence_file_data.append(sequence_file_data_dict)
-        return self
-        
    
 #library's metadata
     def get_run_key(self):
         lib_metadata = json.loads(self.mbd_metadata)
         return lib_metadata['forward_barcodes']["value"] #run_key
-
-    def get_platform(self):
-        lib_metadata = json.loads(self.mbd_metadata)
-        return lib_metadata['seq_meth']["value"] #platform
         
     def get_direction(self):
         lib_metadata = json.loads(self.mbd_metadata)
