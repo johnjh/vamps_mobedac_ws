@@ -812,14 +812,15 @@ class Submission_Processor (threading.Thread):
         # create the param file
 #        param_file_name = processing_dir + "params.prm"
         param_file_name = processing_dir + "parameters.txt"
-        self.create_params_file(param_file_name, submission.user, run_key, project_description, dataset_description, project_title, domain, region, minLength)
+        platform = library_obj.get_platform()
+        self.create_params_file(param_file_name, submission.user, run_key, project_description, dataset_description, project_title, domain, region, minLength, platform)
         
         # now send the files on up
         vamps_status_record_id = self.upload_to_vamps(submission_detail, processing_dir + Submission_Processor.MOBEDAC_SEQUENCE_FILE_NAME_PREFIX, primer_file_name, metadata_file_name, param_file_name)
         return vamps_status_record_id
     
     # check with Andy on what he wants for this
-    def create_params_file(self, param_file_name, vamps_user, run_key, project_description, dataset_description, project_title, domain, region, minLength):
+    def create_params_file(self, param_file_name, vamps_user, run_key, project_description, dataset_description, project_title, domain, region, minLength, platform):
         import datetime
 #        t = datetime.time(1, 2, 3)
 #        print 't :', t
@@ -849,7 +850,7 @@ class Submission_Processor (threading.Thread):
 # REQUIRED: platform (454, illumina, ion_torrent)
 """
         params_file.write(param_text)                       
-        params_file.write("platform=%s\n\n" % ('454'))  # need to get this somewhere
+        params_file.write("platform=%s\n\n" % (platform))  # '454' need to get this somewhere
         
         params_file.write("min_length=%s\n" % (minLength))  # need to get this somewhere
         param_text ="\n# required - but leave empty for no limit\n"

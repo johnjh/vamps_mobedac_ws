@@ -133,6 +133,10 @@ class LibraryORM(Base, BaseMoBEDAC):
         primers = self.collect_primers_info(forward_primers, "F")
         primers += self.collect_primers_info(reverse_primers, "R")
         return primers
+
+    def get_platform(self):
+        lib_metadata = json.loads(self.mbd_metadata)
+        return lib_metadata['seq_meth']["value"] #platform
     
     def collect_primers_info(self, primer_info, primer_dir):
         primers = []
