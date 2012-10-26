@@ -45,7 +45,7 @@ class Submission_Processor (threading.Thread):
         self.sequence_related_metadata_map_json = sequencemetadatamap
         self.compressed = False
         threading.Thread.__init__(self)
-     
+        self.raw_seq_file_name = ""
     # populates a hash (dictionary) and the values are lists
     # this routine takes care of the bookeeping of seeing if the key
     # is already present in the dictionary.  If it is not present
@@ -610,7 +610,7 @@ class Submission_Processor (threading.Thread):
                 # first download it
                 file_type = self.download_raw_sequence_file(detail, sequence_set_id, processing_dir)
                 # now convert it from raw format to clean fasta for VAMPS
-                self.convert_sequence_file(file_type, processing_dir)
+                # self.convert_sequence_file(file_type, processing_dir)
             except:
                 self.log_to_submission_detail(detail, "Error retrieving sequence set: " + detail.sequenceset_id)
                 return        
@@ -648,10 +648,10 @@ class Submission_Processor (threading.Thread):
             if file_type not in valid_file_types:
                 file_type = "fasta"
             # now write out the raw file
-            raw_seq_file_name = self.get_raw_sequence_file_name(file_type, processing_dir)
+            self.raw_seq_file_name = self.get_raw_sequence_file_name(file_type, processing_dir)
             # this could be an sff file? which would be binary
             binary_flag = "b" if file_type == "sff" else ""
-            raw_seq_file = open(raw_seq_file_name, "w" + binary_flag)
+            raw_seq_file = open(self.raw_seq_file_name, "w" + binary_flag)
             buffer_size=8192
             while 1:
                 copy_buffer = remote_file_handle.read(buffer_size)
@@ -669,11 +669,11 @@ class Submission_Processor (threading.Thread):
                 remote_file_handle.close()
             if raw_seq_file != None:
                 raw_seq_file.close()
-            self.compressed = self.is_compressed(raw_seq_file_name)
+            self.compressed = self.is_compressed()
                 
-    def is_compressed(self, raw_seq_file_name):
+    def is_compressed(self):
         import magic
-        res = magic.from_file(raw_seq_file_name)
+        res = magic.from_file(self.raw_seq_file_name)
         print "magic res = %s\n" % res
         #magic res = gzip compressed data, was "icml1.fastq_small", from Unix, last modified: Thu May 24 15:31:54 2012
         if res.startswith("gzip"):
@@ -693,9 +693,9 @@ class Submission_Processor (threading.Thread):
         quality_file_handle = None
         try:
             # open the raw file
-            raw_seq_file_name = self.get_raw_sequence_file_name(file_type, processing_dir)
+            self.raw_seq_file_name = self.get_raw_sequence_file_name(file_type, processing_dir)
             binary_flag = "b" if file_type == "sff" else ""
-            raw_file_handle = open(raw_seq_file_name, "r" + binary_flag)
+            raw_file_handle = open(self.raw_seq_file_name, "r" + binary_flag)
             # now open/create the clean file
             clean_seq_file_name = self.get_sequence_file_base_name(file_type, processing_dir) + ".fa"
             clean_seq_file_handle = open(clean_seq_file_name, 'w')
@@ -707,7 +707,7 @@ class Submission_Processor (threading.Thread):
 #                quality_file_handle = open(file_type + ".qual", 'w')
             # use the sff record id rather than trying to parse it with fasta/q
             use_seq_record_id = (file_type == 'sff') 
-            self.log_debug("attempting to convert sequence file: " + raw_seq_file_name)
+            self.log_debug("attempting to convert sequence file: " + self.raw_seq_file_name)
             self.log_debug("attempting to convert type: " + file_type)
             # parse and write out the clean files
             for seq_record in SeqIO.parse(raw_file_handle, file_type):
@@ -721,7 +721,7 @@ class Submission_Processor (threading.Thread):
                 clean_seq_file_handle.write(">%s\t%s\t%s\n" % (id, str(seq_record.seq) , remainder))
                 if generate_quality_file:
                     quality_file_handle.write(">%s\n%s\n" % (id, seq_record.letter_annotations["phred_quality"]))
-            self.log_debug("successfully converted sequence file: " + raw_seq_file_name)
+            self.log_debug("successfully converted sequence file: " + self.raw_seq_file_name)
         except:
             self.log_exception("Error converting raw sequence file to clean fasta format")
             raise
@@ -926,11 +926,14 @@ quality_file=
             # headers contains the necessary Content-Type and Content-Length
             # datagen is a generator object that yields the encoded parameters
             # VAMPS expects 4 or 5 files in this multipart form upload they have the parameter names shown below
+#            seq_file_name =         return os.path.join(sequence_file_name_prefix, str(submission.id))
+#                         'seqfile'   : open(sequence_file_name_prefix + ".fa","r"),
+ 
             post_params = {
-                         'seqfile'   : open(sequence_file_name_prefix + ".fa","r"),
-                         'primfile'  : open(primer_file_name,"r"),
-                         'metafile'   : open(metadata_file_name,"r"),
-                         'paramfile' : open(param_file_name,"r")
+                         'seqfile'   : open(self.raw_seq_file_name, "r"),
+                         'primfile'  : open(primer_file_name, "r"),
+                         'metafile'  : open(metadata_file_name, "r"),
+                         'paramfile' : open(param_file_name, "r")
                          }
             # where to send it?
             vamps_upload_url = get_parm('vamps_data_post_url')
